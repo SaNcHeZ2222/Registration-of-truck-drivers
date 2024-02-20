@@ -2,7 +2,7 @@ all:
 	python3 main.py
 
 db_clean:
-	rm -rf my_database.db
+	rm -rf base.db
 	python3 db.py
 
 # fix:
