@@ -2,6 +2,8 @@ from aiogram import *
 import sqlite3
 from other_func import *
 import os
+import datetime
+import json
 
 token = '7060673771:AAFQHaSSdi0Hl4BB2va9Zqln12XASKj67TE'
 # trucks_delivery_bot
@@ -78,17 +80,29 @@ async def text_handler(message: types.Message):
             id_truck = int(text.split()[0])
             ex_update(f"UPDATE users SET stage = 'go_per', id_truck = {id_truck} WHERE telegram_id = {chat_id}")
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add("Начать перевозку")
-            await bot.send_message(chat_id, f'Вы выбрили: {text}')
+            markup.add("Начать период")
+            await bot.send_message(chat_id, f'Вы выбрили: {text}', reply_markup=markup)
         else:
             # TODO кнопка поддержки
             await bot.send_message(chat_id, 'Нет такого авто в списке, напиши в тех поддержку')
     # Начать поездку
-    elif stage == 'go_per' and text == 'Начать перевозку':
+    elif stage == 'go_per' and text == 'Начать период':
+        # TODO сделать проверку на незакрытые периоды
         # TODO создать папку с водителем, если нет и добавить папку с периодом
         id_driver = get_id_driver(chat_id)
-        if id_driver not in os.listdir('drive'):
+        id_truck = get_id_truck(chat_id)
+        if str(id_driver) not in os.listdir('drive'):
             os.mkdir(f'drive/{id_driver}')
+        time_now = datetime.datetime.now()
+        os.mkdir(f'drive/{id_driver}/{time_now}')
+        a = {"id_truck": id_truck}
+        ex_update(f"UPDATE trucks SET status = 1 WHERE id = {id_truck}")
+        with open(f'drive/{id_driver}/{time_now}/info.json', 'w') as file:
+            json.dump(a, file)
+
+        # TODO если заявка от логиста, то подсказка
+        markup = types.ReplyKeyboardRemove()
+        await bot.send_message(chat_id, "Выберите откуда - куда или напишите", reply_markup=markup)
     # Не знаю что ответить
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')

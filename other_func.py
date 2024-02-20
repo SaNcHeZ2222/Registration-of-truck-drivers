@@ -53,3 +53,15 @@ def get_id_driver(chat_id) -> int:
     connection.close()
 
     return id 
+
+def get_id_truck(chat_id) -> int:
+    connection = sqlite3.connect('base.db', check_same_thread=True)
+    cursor = connection.cursor()
+
+    cursor.execute(f'SELECT id_truck FROM users WHERE telegram_id = {chat_id}')
+    id = cursor.fetchall()[0][0]
+
+    connection.commit()
+    connection.close()
+
+    return id 
