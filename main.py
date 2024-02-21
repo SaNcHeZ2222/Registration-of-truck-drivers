@@ -97,12 +97,48 @@ async def text_handler(message: types.Message):
         os.mkdir(f'drive/{id_driver}/{time_now}')
         a = {"id_truck": id_truck}
         ex_update(f"UPDATE trucks SET status = 1 WHERE id = {id_truck}")
+        ex_update(f"UPDATE users SET stage = 'from_where' WHERE telegram_id = {chat_id}")
         with open(f'drive/{id_driver}/{time_now}/info.json', 'w') as file:
             json.dump(a, file)
 
         # TODO если заявка от логиста, то подсказка
         markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Выберите откуда - куда или напишите", reply_markup=markup)
+    # Откуда - куда
+    elif stage == 'from_where':
+        # with open(f'drive/{id_driver}/{time_now}/info.json', 'r') as file:
+        #     json.dump(a, file)
+        ex_update(f"UPDATE users SET stage = 'type_drive', from_where = '{text}' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Поездка с грузом')
+        markup.add('Порожний перегон')
+        markup.add("Заявка от логиста, пока не работает кнопка")
+        await bot.send_message(chat_id, 'Выберите типо поездки', reply_markup=markup)
+        # TODO Порожний перегон
+    elif stage == 'type_drive' and text == 'Поездка с грузом':
+        ex_update(f"UPDATE users SET stage = 'start_mileage', type_drive = '{text}' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardRemove()
+        await bot.send_message(chat_id, "Введите данные с одометра числом без пробелов")
+        # TODO Сделать проверка на ввод числа, если не так, то заново просить вписать
+    elif stage == 'start_mileage':
+        if text.isdigit():
+            ex_update(f"UPDATE users SET stage = 'dot_start', start_mileage = {int(text)} WHERE telegram_id = {chat_id}")
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("Заявка от логиста, пока не работает кнопка")
+            await bot.send_message(chat_id, 'Введите координаты (из яндекс карт)')
+        else:
+            await bot.send_message(chat_id, "Вы ввели число некоректно, попробуйте ещё раз")
+    elif stage == 'dot_start':
+        ex_update(f"UPDATE users SET stage = 'dhv', dot_start = '{text}' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Заявка от логиста, пока не работает кнопка")
+        await bot.send_message(chat_id, "Введите Длинну Ширину Высоту через пробел (числа с разделением через точку) в милимметрах")
+    elif stage == 'dhv':
+        ex_update(f"UPDATE users SET stage = 'weight', dhv = '{text}' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Заявка от логиста, пока не работает кнопка")
+        await bot.send_message(chat_id, "Введите вес в граммах")
+    # TODO сделать порожний перегон
     # Не знаю что ответить
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')

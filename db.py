@@ -16,7 +16,12 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     stage TEXT,
     fio TEXT,
     phone TEXT,
-    id_truck bigint
+    id_truck BIGINT,
+    from_where TEXT,
+    type_drive TEXT,
+    start_mileage BIGINT,
+    dot_start TEXT,
+    dhv TEXT
 )""")
 
 
