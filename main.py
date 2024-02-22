@@ -145,7 +145,18 @@ async def text_handler(message: types.Message):
         markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Отправьте одним альбомом 4 фотографии груза", reply_markup=markup)
     # TODO из фото обратно прыгнуть в текст
+    elif stage == 'gruz_end' and text == 'Старт поездки':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Доп расходы')
+        markup.add('Доп условия')
+        markup.add('Форс мажоры')
+        markup.add('ПРИБЫЛ НА МЕСТО РАЗГРУЗКИ')
+        # TODO сделать подтверждение что прибыл на место
+        # TODO сделать кнопки
+        # TODO сделать фиксацию времени
 
+        ex_update(f"UPDATE users SET stage = 'going' WHERE telegram_id = {chat_id}")
+        await bot.send_message(chat_id, 'Хорошо, по мере поездки можете добавлять расходы!', reply_markup=markup)
     
     # TODO сделать порожний перегон
     # Не знаю что ответить
@@ -178,17 +189,29 @@ async def photo_handler(message):
 async def file_handler(message):
     chat_id = message.chat.id
     stage = ex_get_stage(chat_id)
-    print(message)
-    if stage == 'end_photo_download':
-        # document = message.document
-        # await bot.download(document)
-        # file_id = message.document.file_id
-        # file = await bot.get_file(file_id)
-        # file_path = file.file_path
-        # await bot.download_file(file_path, "text.txt")
-        pass
+    time_start_period = get_one_param_db('time_start_period', chat_id)
+    id = get_one_param_db('id', chat_id)
+    if stage == 'end_photo_download' or stage == 'doc_gruz':
+        if document := message.document:
+            if 'files' not in os.listdir(f'drive/{id}/{time_start_period}'):
+                os.mkdir(f'drive/{id}/{time_start_period}/files')
+            if stage == 'end_photo_download':
+                # TODO проверка на объём файла
+                await document.download(destination_file=f"drive/{id}/{time_start_period}/files/ТТН.{document['file_name'.split('.')[-1]]}")
+                ex_update(f"UPDATE users SET stage = 'doc_gruz' WHERE telegram_id = {chat_id}")
+                await bot.send_message(chat_id, 'Отлично, теперь отправьте файл на груз')
+                # TODO один или несколько файлов на груз
+            elif stage == 'doc_gruz':
+                await document.download( destination_file=f"drive/{id}/{time_start_period}/files/Доки груз.{document['file_name'.split('.')[-1]]}")
+                ex_update(f"UPDATE users SET stage = 'gruz_end' WHERE telegram_id = {chat_id}")
+                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                markup.add('Старт поездки')
+                # TODO сделать когда начнёт или сразу чтобы ебланич не забыл
+                await bot.send_message(chat_id, 'Отлично, все файлы загружены, нажмите на кнопку, когда начнёте поездку', reply_markup=markup)
+        else:
+            await bot.send_message(chat_id, "С файлом что-то не так попробуйте оптравить другой файл")
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
 
-    
+    # "document": {"file_name": "all tenses ex.pdf", "mime_type": "application/pdf", "thumbnail": {"file_id": "AAMCAgADGQEAAgIyZdb8HyaQjXjYqGn0gT4VOANNy_EAAgw6AALcaVlKDocSSigQPxABAAdtAAM0BA", "file_unique_id": "AQADDDoAAtxpWUpy", "file_size": 12321, "width": 226, "height": 320}, "thumb": {"file_id": "AAMCAgADGQEAAgIyZdb8HyaQjXjYqGn0gT4VOANNy_EAAgw6AALcaVlKDocSSigQPxABAAdtAAM0BA", "file_unique_id": "AQADDDoAAtxpWUpy", "file_size": 12321, "width": 226, "height": 320}, "file_id": "BQACAgIAAxkBAAICMmXW_B8mkI142Khp9IE-FTgDTcvxAAIMOgAC3GlZSg6HEkooED8QNAQ", "file_unique_id": "AgADDDoAAtxpWUo", "file_size": 112379}
 executor.start_polling(dp, skip_updates=True)
