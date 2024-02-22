@@ -18,13 +18,17 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     phone TEXT,
     id_truck BIGINT,
     from_where TEXT,
+    time_start_period TEXT,
     type_drive TEXT,
     start_mileage BIGINT,
     dot_start TEXT,
-    dhv TEXT
+    dhv TEXT,
+    weight TEXT,
+    count_photo_download INTEGER DEFAULT 0
+
 )""")
 
-
+# Уточнить у Фила, вес участвует в подсчёте формул?
 cursor.execute("""INSERT INTO trucks(name_auto, number) VALUES ('Первый трак', 'y222yy77')""")
 
 

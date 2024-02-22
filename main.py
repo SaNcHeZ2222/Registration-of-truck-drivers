@@ -97,7 +97,7 @@ async def text_handler(message: types.Message):
         os.mkdir(f'drive/{id_driver}/{time_now}')
         a = {"id_truck": id_truck}
         ex_update(f"UPDATE trucks SET status = 1 WHERE id = {id_truck}")
-        ex_update(f"UPDATE users SET stage = 'from_where' WHERE telegram_id = {chat_id}")
+        ex_update(f"UPDATE users SET stage = 'from_where', time_start_period = '{time_now}' WHERE telegram_id = {chat_id}")
         with open(f'drive/{id_driver}/{time_now}/info.json', 'w') as file:
             json.dump(a, file)
 
@@ -118,32 +118,77 @@ async def text_handler(message: types.Message):
     elif stage == 'type_drive' and text == 'Поездка с грузом':
         ex_update(f"UPDATE users SET stage = 'start_mileage', type_drive = '{text}' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardRemove()
-        await bot.send_message(chat_id, "Введите данные с одометра числом без пробелов")
+        await bot.send_message(chat_id, "Введите данные с одометра числом без пробелов", reply_markup=markup)
         # TODO Сделать проверка на ввод числа, если не так, то заново просить вписать
     elif stage == 'start_mileage':
         if text.isdigit():
             ex_update(f"UPDATE users SET stage = 'dot_start', start_mileage = {int(text)} WHERE telegram_id = {chat_id}")
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add("Заявка от логиста, пока не работает кнопка")
-            await bot.send_message(chat_id, 'Введите координаты (из яндекс карт)')
+            await bot.send_message(chat_id, 'Введите координаты (из яндекс карт)', reply_markup=markup)
         else:
             await bot.send_message(chat_id, "Вы ввели число некоректно, попробуйте ещё раз")
     elif stage == 'dot_start':
         ex_update(f"UPDATE users SET stage = 'dhv', dot_start = '{text}' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("Заявка от логиста, пока не работает кнопка")
-        await bot.send_message(chat_id, "Введите Длинну Ширину Высоту через пробел (числа с разделением через точку) в милимметрах")
+        await bot.send_message(chat_id, "Введите Длинну Ширину Высоту через пробел (числа с разделением через точку) в милимметрах", reply_markup=markup)
     elif stage == 'dhv':
         ex_update(f"UPDATE users SET stage = 'weight', dhv = '{text}' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("Заявка от логиста, пока не работает кнопка")
-        await bot.send_message(chat_id, "Введите вес в граммах")
+        await bot.send_message(chat_id, "Введите вес в граммах", reply_markup=markup)
+    elif stage == 'weight':
+        ex_update(f"UPDATE users SET stage = 'photo_gruz', weight = '{text}' WHERE telegram_id = {chat_id}")
+        # markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        # markup.add("Заявка от логиста, пока не работает кнопка")
+        markup = types.ReplyKeyboardRemove()
+        await bot.send_message(chat_id, "Отправьте одним альбомом 4 фотографии груза", reply_markup=markup)
+    # TODO из фото обратно прыгнуть в текст
+
+    
     # TODO сделать порожний перегон
     # Не знаю что ответить
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
     
 
-    
+@dp.message_handler(content_types='photo')
+async def photo_handler(message):
+    chat_id = message.chat.id
+    stage = ex_get_stage(chat_id)
+    count_photo_download = get_one_param_db('count_photo_download', chat_id)
+    time_start_period = get_one_param_db('time_start_period', chat_id)
+    id = get_one_param_db('id', chat_id)
+    if stage == 'photo_gruz' and 0 <= count_photo_download <= 3:
+        count_photo_download += 1
+        ex_update(f"UPDATE users SET count_photo_download = count_photo_download + 1 WHERE telegram_id = {chat_id}")
+        if 'photo_gruz' not in os.listdir(f'drive/{id}/{time_start_period}'):
+            os.mkdir(f'drive/{id}/{time_start_period}/photo_gruz')
+        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/photo_gruz/{count_photo_download}.jpg')
+        if count_photo_download == 4:
+            ex_update(f"UPDATE users SET stage = 'end_photo_download' WHERE telegram_id = {chat_id}")
+            await bot.send_message(chat_id, 'Фото успешно загружены, теперь отправьте документы - ТТН')
+
+    else:
+        await bot.send_message(chat_id, 'Не знаю что ответить')
+
+
+@dp.message_handler(content_types='document')
+async def file_handler(message):
+    chat_id = message.chat.id
+    stage = ex_get_stage(chat_id)
+    print(message)
+    if stage == 'end_photo_download':
+        # document = message.document
+        # await bot.download(document)
+        # file_id = message.document.file_id
+        # file = await bot.get_file(file_id)
+        # file_path = file.file_path
+        # await bot.download_file(file_path, "text.txt")
+        pass
+    else:
+        await bot.send_message(chat_id, 'Не знаю что ответить')
+
     
 executor.start_polling(dp, skip_updates=True)
