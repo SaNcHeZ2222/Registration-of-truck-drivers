@@ -144,22 +144,60 @@ async def text_handler(message: types.Message):
         # markup.add("Заявка от логиста, пока не работает кнопка")
         markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Отправьте одним альбомом 4 фотографии груза", reply_markup=markup)
-    # TODO из фото обратно прыгнуть в текст
+    # TODO сделать порожний перегон
     elif stage == 'gruz_end' and text == 'Старт поездки':
+        time_start_transit = datetime.datetime.now()
+        id_driver = get_id_driver(chat_id)
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+
+        data = read_json_file(id_driver, time_start_period)
+        data['time_start_transit'] = str(time_start_transit)
+        write_json_file(id_driver, time_start_period, data)
+
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Доп расходы')
         markup.add('Доп условия')
-        markup.add('Форс мажоры')
+        markup.add('Форс-мажоры')
         markup.add('ПРИБЫЛ НА МЕСТО РАЗГРУЗКИ')
-        # TODO сделать подтверждение что прибыл на место
-        # TODO сделать кнопки
-        # TODO сделать фиксацию времени
+        ex_update(f"UPDATE users SET stage = 'in_transit' WHERE telegram_id = {chat_id}")
+        # TODO надо ли сделать двойную проверку про разгрузку или пох?
+        await bot.send_message(chat_id, 'Добавляйте условия и тд, пока не приедете на место разгрузки', reply_markup=markup)
+    # Доп расходы
+    elif stage == 'in_transit' and text == 'Доп расходы':
+        await bot.send_message(chat_id, 'Доп расходы пока не работают')
+    # Доп условия
+    elif stage == 'in_transit' and text == 'Доп условия':
+        await bot.send_message(chat_id, 'Доп условия пока не работают')
+    # Форс-мажоры
+    elif stage == 'in_transit' and text == 'Форс-мажоры':
+        await bot.send_message(chat_id, 'Форс-мажоры пока не работают')
+    # Прибыл на место разгрузки 
+    elif stage == 'in_transit' and text == 'ПРИБЫЛ НА МЕСТО РАЗГРУЗКИ':
+        time_end_transit = datetime.datetime.now()
+        id_driver = get_id_driver(chat_id)
+        time_start_period = get_one_param_db('time_start_period', chat_id)
 
-        ex_update(f"UPDATE users SET stage = 'going' WHERE telegram_id = {chat_id}")
-        await bot.send_message(chat_id, 'Хорошо, по мере поездки можете добавлять расходы!', reply_markup=markup)
-    
-    # TODO сделать порожний перегон
-    # Не знаю что ответить
+        data = read_json_file(id_driver, time_start_period)
+        data['time_end_transit'] = str(time_end_transit)
+        write_json_file(id_driver, time_start_period, data)
+
+        markup = types.ReplyKeyboardRemove()
+        
+        ex_update(f"UPDATE users SET stage = 'get_koor_finish' WHERE telegram_id = {chat_id}")
+
+        await bot.send_message(chat_id, 'Укажите координаты финиша', reply_markup=markup)
+    # Координаты финиша
+    elif stage == 'get_koor_finish':
+        ex_update(f"UPDATE users SET stage = 'end_mileage_km', dot_end = '{text}' WHERE telegram_id = {chat_id}")
+        await bot.send_message(chat_id, 'Введите данные с одометра одним число без пробелов')
+    elif stage == 'end_mileage_km':
+        # TODO сделать проверку, что не может быть меньше, чем начальное
+        if text.isdigit():
+            ex_update(f"UPDATE users SET stage = 'info_unload', end_mileage = '{text}' WHERE telegram_id = {chat_id}")
+            await bot.send_message(chat_id, 'Отправьте данные о разгурке')
+            # TODO какие нах данные? хахахахах
+        else:
+            await bot.send_message(chat_id, 'Вы ввели число неправильно, введите число без пробелов и точек')
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
     
@@ -213,5 +251,5 @@ async def file_handler(message):
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
 
-    # "document": {"file_name": "all tenses ex.pdf", "mime_type": "application/pdf", "thumbnail": {"file_id": "AAMCAgADGQEAAgIyZdb8HyaQjXjYqGn0gT4VOANNy_EAAgw6AALcaVlKDocSSigQPxABAAdtAAM0BA", "file_unique_id": "AQADDDoAAtxpWUpy", "file_size": 12321, "width": 226, "height": 320}, "thumb": {"file_id": "AAMCAgADGQEAAgIyZdb8HyaQjXjYqGn0gT4VOANNy_EAAgw6AALcaVlKDocSSigQPxABAAdtAAM0BA", "file_unique_id": "AQADDDoAAtxpWUpy", "file_size": 12321, "width": 226, "height": 320}, "file_id": "BQACAgIAAxkBAAICMmXW_B8mkI142Khp9IE-FTgDTcvxAAIMOgAC3GlZSg6HEkooED8QNAQ", "file_unique_id": "AgADDDoAAtxpWUo", "file_size": 112379}
+
 executor.start_polling(dp, skip_updates=True)

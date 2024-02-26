@@ -1,5 +1,6 @@
 import sqlite3
 from aiogram import *
+import json
 
 
 def ex_update(zapros: str):
@@ -77,3 +78,14 @@ def get_one_param_db(param, chat_id):
     connection.close()
 
     return param 
+
+def read_json_file(id_driver, time_start_period) -> dict:
+    with open(f'drive/{id_driver}/{time_start_period}/info.json', "r") as f:
+        data = json.load(f)
+        f.close()
+        return data
+    
+def write_json_file(id_driver, time_start_period, data) -> None:
+    with open(f'drive/{id_driver}/{time_start_period}/info.json', "w") as f:
+        json.dump(data, f)
+        f.close()
