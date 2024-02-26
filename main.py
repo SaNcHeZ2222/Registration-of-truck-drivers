@@ -174,6 +174,7 @@ async def text_handler(message: types.Message):
     # Прибыл на место разгрузки 
     elif stage == 'in_transit' and text == 'ПРИБЫЛ НА МЕСТО РАЗГРУЗКИ':
         time_end_transit = datetime.datetime.now()
+
         id_driver = get_id_driver(chat_id)
         time_start_period = get_one_param_db('time_start_period', chat_id)
 
@@ -193,11 +194,59 @@ async def text_handler(message: types.Message):
     elif stage == 'end_mileage_km':
         # TODO сделать проверку, что не может быть меньше, чем начальное
         if text.isdigit():
-            ex_update(f"UPDATE users SET stage = 'info_unload', end_mileage = '{text}' WHERE telegram_id = {chat_id}")
+            ex_update(f"UPDATE users SET stage = 'info_unload', end_mileage = {text} WHERE telegram_id = {chat_id}")
             await bot.send_message(chat_id, 'Отправьте данные о разгурке')
             # TODO какие нах данные? хахахахах
         else:
             await bot.send_message(chat_id, 'Вы ввели число неправильно, введите число без пробелов и точек')
+    elif stage == 'info_unload':
+
+        id_driver = get_id_driver(chat_id)
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        data = read_json_file(id_driver, time_start_period)
+
+        data['info_unload'] = str(text)
+
+        write_json_file(id_driver, time_start_period, data)
+
+        ex_update(f"UPDATE users SET stage = 'additional_conditions' WHERE telegram_id = {chat_id}")
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Пропустить')
+
+        await bot.send_message(chat_id, 'Напишите какие-то дополнительные условия или нажмите кнопку пропустить', reply_markup=markup)
+    elif stage == 'additional_conditions':
+        if text != 'Пропустить':
+            id_driver = get_id_driver(chat_id)
+            time_start_period = get_one_param_db('time_start_period', chat_id)
+            data = read_json_file(id_driver, time_start_period)
+
+            data['additional_conditions'] = str(text)
+
+            write_json_file(id_driver, time_start_period, data)
+
+        ex_update(f"UPDATE users SET stage = 'end_unload' WHERE telegram_id = {chat_id}")
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Разгрузка закончена")
+        await bot.send_message(chat_id, 'Когда разгрузка будет закончена - нажмите кнопку', reply_markup=markup)
+    elif stage == 'end_unload' and text == 'Разгрузка закончена':
+        time_end_unload = datetime.datetime.now()
+
+        id_driver = get_id_driver(chat_id)
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        data = read_json_file(id_driver, time_start_period)
+
+        data['time_end_unload'] = str(time_end_unload)
+
+        write_json_file(id_driver, time_start_period, data)
+
+        markup = types.ReplyKeyboardRemove()
+        ex_update(f"UPDATE users SET stage = 'get_done_ttn' WHERE telegram_id = {chat_id}")
+        
+        # TODO СДЕЛАТЬ ЕЩЁ ПОДПАПКУ С ПЕРИОДОМ
+        # TODO сделать чтобы не перевиодился в unicode в json файле
+        await bot.send_message(chat_id, 'Отправьте фото накладной (ТТН отмеченной получателем)', reply_markup=markup)
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
     
@@ -218,7 +267,12 @@ async def photo_handler(message):
         if count_photo_download == 4:
             ex_update(f"UPDATE users SET stage = 'end_photo_download' WHERE telegram_id = {chat_id}")
             await bot.send_message(chat_id, 'Фото успешно загружены, теперь отправьте документы - ТТН')
-
+    elif stage == 'get_done_ttn':
+        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/photo_gruz/done_ttn.jpg')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Начать перевозку')
+        markup.add('Закончить период')
+        await bot.send_message(chat_id, 'Фотография успешно сохранена теперь выбирайте, чем заняться дальше', reply_markup=markup)
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
 

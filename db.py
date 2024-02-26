@@ -26,7 +26,7 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     weight TEXT,
     count_photo_download INTEGER DEFAULT 0,
     dot_end TEXT,
-    end_mileage TEXT
+    end_mileage BIGINT
 )""")
 
 # Уточнить у Фила, вес участвует в подсчёте формул?
