@@ -79,13 +79,13 @@ def get_one_param_db(param, chat_id):
 
     return param 
 
-def read_json_file(id_driver, time_start_period) -> dict:
-    with open(f'drive/{id_driver}/{time_start_period}/info.json', "r") as f:
+def read_json_file(id_driver, time_start_period, current_dir) -> dict:
+    with open(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.json', "r") as f:
         data = json.load(f)
         f.close()
         return data
     
-def write_json_file(id_driver, time_start_period, data) -> None:
-    with open(f'drive/{id_driver}/{time_start_period}/info.json', "w") as f:
+def write_json_file(id_driver, time_start_period, current_dir, data) -> None:
+    with open(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.json', "w") as f:
         json.dump(data, f)
         f.close()

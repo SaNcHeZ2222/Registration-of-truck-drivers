@@ -19,6 +19,7 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     id_truck BIGINT,
     from_where TEXT,
     time_start_period TEXT,
+    current_dir TEXT,
     type_drive TEXT,
     start_mileage BIGINT,
     dot_start TEXT,

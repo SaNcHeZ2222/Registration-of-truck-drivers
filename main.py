@@ -89,26 +89,32 @@ async def text_handler(message: types.Message):
     elif stage == 'go_per' and text == 'Начать период':
         # TODO сделать проверку на незакрытые периоды
         # TODO создать папку с водителем, если нет и добавить папку с периодом
-        id_driver = get_id_driver(chat_id)
+        
+
         id_truck = get_id_truck(chat_id)
-        if str(id_driver) not in os.listdir('drive'):
-            os.mkdir(f'drive/{id_driver}')
-        time_now = datetime.datetime.now()
-        os.mkdir(f'drive/{id_driver}/{time_now}')
-        a = {"id_truck": id_truck}
+        time_now = datetime.datetime.now().strftime("%d.%m.%y %H:%M:%S")
         ex_update(f"UPDATE trucks SET status = 1 WHERE id = {id_truck}")
         ex_update(f"UPDATE users SET stage = 'from_where', time_start_period = '{time_now}' WHERE telegram_id = {chat_id}")
-        with open(f'drive/{id_driver}/{time_now}/info.json', 'w') as file:
-            json.dump(a, file)
 
         # TODO если заявка от логиста, то подсказка
         markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Выберите откуда - куда или напишите", reply_markup=markup)
     # Откуда - куда
     elif stage == 'from_where':
-        # with open(f'drive/{id_driver}/{time_now}/info.json', 'r') as file:
-        #     json.dump(a, file)
-        ex_update(f"UPDATE users SET stage = 'type_drive', from_where = '{text}' WHERE telegram_id = {chat_id}")
+        id_driver = get_id_driver(chat_id)
+        id_truck = get_id_driver(chat_id)
+        time_now = get_one_param_db('time_start_period', chat_id)
+        current_dir = f'{text} {datetime.datetime.now().strftime(r"%d.%m.%y")}'
+        if str(id_driver) not in os.listdir('drive'):
+            os.mkdir(f'drive/{id_driver}')
+        os.mkdir(f'drive/{id_driver}/{time_now}')
+        os.mkdir(f'drive/{id_driver}/{time_now}/{current_dir}')
+        a = {"id_truck": id_truck} 
+    
+        with open(f'drive/{id_driver}/{time_now}/{current_dir}/info.json', 'w') as file:
+            json.dump(a, file)
+
+        ex_update(f"UPDATE users SET stage = 'type_drive', from_where = '{text}', current_dir = '{current_dir}' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Поездка с грузом')
         markup.add('Порожний перегон')
@@ -148,11 +154,12 @@ async def text_handler(message: types.Message):
     elif stage == 'gruz_end' and text == 'Старт поездки':
         time_start_transit = datetime.datetime.now()
         id_driver = get_id_driver(chat_id)
+        current_dir = get_one_param_db('current_dir', chat_id)
         time_start_period = get_one_param_db('time_start_period', chat_id)
 
-        data = read_json_file(id_driver, time_start_period)
+        data = read_json_file(id_driver, time_start_period, current_dir)
         data['time_start_transit'] = str(time_start_transit)
-        write_json_file(id_driver, time_start_period, data)
+        write_json_file(id_driver, time_start_period, current_dir, data)
 
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Доп расходы')
@@ -177,10 +184,12 @@ async def text_handler(message: types.Message):
 
         id_driver = get_id_driver(chat_id)
         time_start_period = get_one_param_db('time_start_period', chat_id)
+        current_dir = get_one_param_db('current_dir', chat_id)
 
-        data = read_json_file(id_driver, time_start_period)
+        data = read_json_file(id_driver, time_start_period, current_dir)
         data['time_end_transit'] = str(time_end_transit)
-        write_json_file(id_driver, time_start_period, data)
+        write_json_file(id_driver, time_start_period, current_dir, data)
+
 
         markup = types.ReplyKeyboardRemove()
         
@@ -203,11 +212,12 @@ async def text_handler(message: types.Message):
 
         id_driver = get_id_driver(chat_id)
         time_start_period = get_one_param_db('time_start_period', chat_id)
-        data = read_json_file(id_driver, time_start_period)
+        current_dir = get_one_param_db('current_dir', chat_id)
+        data = read_json_file(id_driver, time_start_period, current_dir)
 
         data['info_unload'] = str(text)
 
-        write_json_file(id_driver, time_start_period, data)
+        write_json_file(id_driver, time_start_period, current_dir, data)
 
         ex_update(f"UPDATE users SET stage = 'additional_conditions' WHERE telegram_id = {chat_id}")
 
@@ -218,12 +228,13 @@ async def text_handler(message: types.Message):
     elif stage == 'additional_conditions':
         if text != 'Пропустить':
             id_driver = get_id_driver(chat_id)
+            current_dir = get_one_param_db('current_dir', chat_id)
             time_start_period = get_one_param_db('time_start_period', chat_id)
-            data = read_json_file(id_driver, time_start_period)
+            data = read_json_file(id_driver, time_start_period, current_dir)
 
             data['additional_conditions'] = str(text)
 
-            write_json_file(id_driver, time_start_period, data)
+            write_json_file(id_driver, time_start_period, current_dir, data)
 
         ex_update(f"UPDATE users SET stage = 'end_unload' WHERE telegram_id = {chat_id}")
 
@@ -235,11 +246,13 @@ async def text_handler(message: types.Message):
 
         id_driver = get_id_driver(chat_id)
         time_start_period = get_one_param_db('time_start_period', chat_id)
-        data = read_json_file(id_driver, time_start_period)
+        current_dir = get_one_param_db('current_dir', chat_id)
+        data = read_json_file(id_driver, time_start_period, current_dir)
+        
 
         data['time_end_unload'] = str(time_end_unload)
 
-        write_json_file(id_driver, time_start_period, data)
+        write_json_file(id_driver, time_start_period, current_dir, data)
 
         markup = types.ReplyKeyboardRemove()
         ex_update(f"UPDATE users SET stage = 'get_done_ttn' WHERE telegram_id = {chat_id}")
@@ -258,17 +271,18 @@ async def photo_handler(message):
     count_photo_download = get_one_param_db('count_photo_download', chat_id)
     time_start_period = get_one_param_db('time_start_period', chat_id)
     id = get_one_param_db('id', chat_id)
+    current_dir = get_one_param_db('current_dir', chat_id)
     if stage == 'photo_gruz' and 0 <= count_photo_download <= 3:
         count_photo_download += 1
         ex_update(f"UPDATE users SET count_photo_download = count_photo_download + 1 WHERE telegram_id = {chat_id}")
-        if 'photo_gruz' not in os.listdir(f'drive/{id}/{time_start_period}'):
-            os.mkdir(f'drive/{id}/{time_start_period}/photo_gruz')
-        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/photo_gruz/{count_photo_download}.jpg')
+        if 'photo_gruz' not in os.listdir(f'drive/{id}/{time_start_period}/{current_dir}'):
+            os.mkdir(f'drive/{id}/{time_start_period}/{current_dir}/photo_gruz')
+        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/photo_gruz/{count_photo_download}.jpg')
         if count_photo_download == 4:
             ex_update(f"UPDATE users SET stage = 'end_photo_download' WHERE telegram_id = {chat_id}")
             await bot.send_message(chat_id, 'Фото успешно загружены, теперь отправьте документы - ТТН')
     elif stage == 'get_done_ttn':
-        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/photo_gruz/done_ttn.jpg')
+        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/photo_gruz/done_ttn.jpg')
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Начать перевозку')
         markup.add('Закончить период')
@@ -283,18 +297,19 @@ async def file_handler(message):
     stage = ex_get_stage(chat_id)
     time_start_period = get_one_param_db('time_start_period', chat_id)
     id = get_one_param_db('id', chat_id)
+    current_dir = get_one_param_db('current_dir', chat_id)
     if stage == 'end_photo_download' or stage == 'doc_gruz':
         if document := message.document:
-            if 'files' not in os.listdir(f'drive/{id}/{time_start_period}'):
-                os.mkdir(f'drive/{id}/{time_start_period}/files')
+            if 'files' not in os.listdir(f'drive/{id}/{time_start_period}/{current_dir}'):
+                os.mkdir(f'drive/{id}/{time_start_period}/{current_dir}/files')
             if stage == 'end_photo_download':
                 # TODO проверка на объём файла
-                await document.download(destination_file=f"drive/{id}/{time_start_period}/files/ТТН.{document['file_name'.split('.')[-1]]}")
+                await document.download(destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/ТТН.{document['file_name'.split('.')[-1]]}")
                 ex_update(f"UPDATE users SET stage = 'doc_gruz' WHERE telegram_id = {chat_id}")
                 await bot.send_message(chat_id, 'Отлично, теперь отправьте файл на груз')
                 # TODO один или несколько файлов на груз
             elif stage == 'doc_gruz':
-                await document.download( destination_file=f"drive/{id}/{time_start_period}/files/Доки груз.{document['file_name'.split('.')[-1]]}")
+                await document.download( destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/Доки груз.{document['file_name'.split('.')[-1]]}")
                 ex_update(f"UPDATE users SET stage = 'gruz_end' WHERE telegram_id = {chat_id}")
                 markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
                 markup.add('Старт поездки')
