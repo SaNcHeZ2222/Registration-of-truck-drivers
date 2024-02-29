@@ -1,11 +1,12 @@
 from aiogram import *
 import sqlite3
 from other_func import *
+from config import token
 import os
 import datetime
 import json
 
-token = '7060673771:AAFQHaSSdi0Hl4BB2va9Zqln12XASKj67TE'
+token = token
 # trucks_delivery_bot
 
 bot = Bot(token)
