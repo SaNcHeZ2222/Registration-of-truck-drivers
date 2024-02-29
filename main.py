@@ -140,12 +140,22 @@ async def text_handler(message: types.Message):
         else:
             await bot.send_message(chat_id, "Вы ввели число некоректно, попробуйте ещё раз")
     elif stage == 'dot_start':
-        ex_update(f"UPDATE users SET stage = 'dhv', dot_start = '{text}' WHERE telegram_id = {chat_id}")
+        ex_update(f"UPDATE users SET stage = 'd', dot_start = '{text}' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("Заявка от логиста, пока не работает кнопка")
-        await bot.send_message(chat_id, "Введите Длинну Ширину Высоту через пробел (числа с разделением через точку) в милимметрах", reply_markup=markup)
-    elif stage == 'dhv':
-        ex_update(f"UPDATE users SET stage = 'weight', dhv = '{text}' WHERE telegram_id = {chat_id}")
+        await bot.send_message(chat_id, "Введите <b>длину</b> в метрах и сантиметры через точку, например 11 метров 25 см будет 11.25", reply_markup=markup, parse_mode='html')
+    elif stage == 'd':
+        ex_update(f"UPDATE users SET stage = 's', d = '{text}' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Заявка от логиста, пока не работает кнопка")
+        await bot.send_message(chat_id, "Введите <b>ширину</b> в метрах и сантиметры через точку, например 11 метров 25 см будет 11.25", reply_markup=markup, parse_mode='html')
+    elif stage == 's':
+        ex_update(f"UPDATE users SET stage = 'v', s = '{text}' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Заявка от логиста, пока не работает кнопка")
+        await bot.send_message(chat_id, "Введите <b>высоту</b> в метрах и сантиметры через точку, например 11 метров 25 см будет 11.25", reply_markup=markup, parse_mode='html')
+    elif stage == 'v':
+        ex_update(f"UPDATE users SET stage = 'weight', v = '{text}' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("Заявка от логиста, пока не работает кнопка")
         await bot.send_message(chat_id, "Введите вес в граммах", reply_markup=markup)
@@ -326,7 +336,12 @@ async def photo_handler(message):
         await bot.send_message(chat_id, 'Фотография успешно сохранена теперь выбирайте, чем заняться дальше', reply_markup=markup)
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
-    
+
+
+# @dp.message_handler(content_types='location')
+# async def location_handler(message):
+#     print(message)
+    # TODO локация так себе работает
 
 
 executor.start_polling(dp, skip_updates=True)
