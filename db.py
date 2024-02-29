@@ -18,7 +18,7 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     phone TEXT,
     id_truck BIGINT,
     from_where TEXT,
-    time_start_period TEXT,
+    time_start_period TEXT DEFAULT NULL,
     current_dir TEXT,
     type_drive TEXT,
     start_mileage BIGINT,
@@ -32,6 +32,8 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
 
 # Уточнить у Фила, вес участвует в подсчёте формул?
 cursor.execute("""INSERT INTO trucks(name_auto, number) VALUES ('Первый трак', 'y222yy77')""")
+
+# print(*cursor.execute('SELECT time_start_period FROM users WHERE telegram_id = 703194398'))
 
 
 connection.commit()
