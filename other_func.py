@@ -95,12 +95,12 @@ def get_all_obj(chat_id):
     connection = sqlite3.connect(f'base.db', check_same_thread=True)
     cursor = connection.cursor()
 
-    cursor.execute(f'SELECT telegram_id, stage, fio, phone, id_truck, from_where, time_start_period, current_dir, type_drive, start_mileage, dot_start, dhv, weight, count_photo_download, dot_end, end_mileage FROM users WHERE telegram_id = 703194398')
-    telegram_id, stage, fio, phone, id_truck, from_where, time_start_period, current_dir, type_drive, start_mileage, dot_start, dhv, weight, count_photo_download, dot_end, end_mileage = cursor.fetchall()[0]
+    cursor.execute(f'SELECT telegram_id, stage, fio, phone, id_truck, from_where, time_start_period, current_dir, type_drive, start_mileage, dot_start, d, s, v, weight, count_photo_download, dot_end, end_mileage FROM users WHERE telegram_id = 703194398')
+    telegram_id, stage, fio, phone, id_truck, from_where, time_start_period, current_dir, type_drive, start_mileage, dot_start, d, s, v, weight, count_photo_download, dot_end, end_mileage = cursor.fetchall()[0]
 
     connection.commit()
     connection.close()
 
-    a = {'telegram_id': telegram_id, 'stage': stage, 'fio': fio, 'phone': phone, 'id_truck': id_truck, 'from_where': from_where, 'time_start_period': time_start_period, 'current_dir': current_dir, 'type_drive': type_drive, 'start_mileage': start_mileage, 'dot_start': dot_start, 'dhv': dhv, 'weight': weight, 'count_photo_download': count_photo_download, 'dot_end': dot_end, 'end_mileage': end_mileage}
+    a = {'telegram_id': telegram_id, 'stage': stage, 'fio': fio, 'phone': phone, 'id_truck': id_truck, 'from_where': from_where, 'time_start_period': time_start_period, 'current_dir': current_dir, 'type_drive': type_drive, 'start_mileage': start_mileage, 'dot_start': dot_start, 'd': d, 's': s, 'v': v, 'weight': weight, 'count_photo_download': count_photo_download, 'dot_end': dot_end, 'end_mileage': end_mileage}
 
     return a

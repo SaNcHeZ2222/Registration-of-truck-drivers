@@ -90,7 +90,7 @@ async def text_handler(message: types.Message):
         # TODO сделать проверку на незакрытые периоды
         # TODO сделать открытие трака после закрытия периода
         time_start_period = get_one_param_db('time_start_period', chat_id)
-        if time_start_period == 'NULL':
+        if time_start_period == None:
             id_truck = get_id_truck(chat_id)
             time_now = datetime.datetime.now().strftime("%d.%m.%y %H:%M:%S")
             ex_update(f"UPDATE trucks SET status = 1 WHERE id = {id_truck}")
@@ -131,6 +131,7 @@ async def text_handler(message: types.Message):
         markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Введите данные с одометра числом без пробелов", reply_markup=markup)
         # TODO Сделать проверка на ввод числа, если не так, то заново просить вписать
+        # TODO сделать порожний перегон
     elif stage == 'start_mileage':
         if text.isdigit():
             ex_update(f"UPDATE users SET stage = 'dot_start', start_mileage = {int(text)} WHERE telegram_id = {chat_id}")

@@ -7,7 +7,9 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS trucks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name_auto TEXT,
     number TEXT,
-    status INTEGER DEFAULT 0
+    status INTEGER DEFAULT 0,
+    price_1_km INTEGER DEFAULT 0,
+    weight_avto BIGINT DEFAULT 0
 )""")
 
 cursor.execute("""CREATE TABLE IF NOT EXISTS users (
@@ -29,11 +31,12 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     weight TEXT,
     count_photo_download INTEGER DEFAULT 0,
     dot_end TEXT,
-    end_mileage BIGINT
+    end_mileage BIGINT,
+    empty_race INTEGER DEFAULT 0
 )""")
 
 # Уточнить у Фила, вес участвует в подсчёте формул?
-cursor.execute("""INSERT INTO trucks(name_auto, number) VALUES ('Первый трак', 'y222yy77')""")
+cursor.execute("""INSERT INTO trucks(name_auto, number, price_1_km, weight_avto) VALUES ('Первый трак', 'y222yy77', 12, 33)""")
 
 # print(*cursor.execute('SELECT time_start_period FROM users WHERE telegram_id = 703194398'))
 
