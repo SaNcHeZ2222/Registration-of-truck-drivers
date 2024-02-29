@@ -284,7 +284,20 @@ async def photo_handler(message):
     time_start_period = get_one_param_db('time_start_period', chat_id)
     id = get_one_param_db('id', chat_id)
     current_dir = get_one_param_db('current_dir', chat_id)
-    if stage == 'photo_gruz' and 0 <= count_photo_download <= 3:
+    if stage == 'end_photo_download' or stage == 'doc_gruz':
+        if 'files' not in os.listdir(f'drive/{id}/{time_start_period}/{current_dir}'):
+            os.mkdir(f'drive/{id}/{time_start_period}/{current_dir}/files')
+        if stage == 'end_photo_download':
+            await message.photo[-1].download(destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/ТТН.jpg")
+            ex_update(f"UPDATE users SET stage = 'doc_gruz' WHERE telegram_id = {chat_id}")
+            await bot.send_message(chat_id, 'Отлично, теперь отправьте фото файла на груз')
+        elif stage == 'doc_gruz':
+            await message.photo[-1].download( destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/Доки груз.jpg")
+            ex_update(f"UPDATE users SET stage = 'gruz_end' WHERE telegram_id = {chat_id}")
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Старт поездки')
+            await bot.send_message(chat_id, 'Отлично, все фото загружены, нажмите на кнопку, когда начнёте поездку', reply_markup=markup)
+    elif stage == 'photo_gruz' and 0 <= count_photo_download <= 3:
         count_photo_download += 1
         ex_update(f"UPDATE users SET count_photo_download = count_photo_download + 1 WHERE telegram_id = {chat_id}")
         if 'photo_gruz' not in os.listdir(f'drive/{id}/{time_start_period}/{current_dir}'):
@@ -292,14 +305,13 @@ async def photo_handler(message):
         await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/photo_gruz/{count_photo_download}.jpg')
         if count_photo_download == 4:
             ex_update(f"UPDATE users SET stage = 'end_photo_download' WHERE telegram_id = {chat_id}")
-            await bot.send_message(chat_id, 'Фото успешно загружены, теперь отправьте документы - ТТН')
+            await bot.send_message(chat_id, 'Фото успешно загружены, теперь отправьте фото документов - ТТН')
     elif stage == 'get_done_ttn':
         ex_update(f"UPDATE users SET stage = 'end_poezdka' WHERE telegram_id = {chat_id}")
         await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/photo_gruz/done_ttn.jpg')
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Начать перевозку')
         markup.add('Закончить период')
-        # TODO высылать чеек
 
         all_data = get_all_obj(chat_id)
         id_driver = get_id_driver(chat_id)
@@ -308,40 +320,13 @@ async def photo_handler(message):
         write_json_file(id_driver, time_start_period, current_dir, data)
 
         await bot.send_message(chat_id, 'Ваш чек')
+        # TODO формирование чека
+        # TODO добавить отдых и тд
 
         await bot.send_message(chat_id, 'Фотография успешно сохранена теперь выбирайте, чем заняться дальше', reply_markup=markup)
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
-
-
-@dp.message_handler(content_types='document')
-async def file_handler(message):
-    chat_id = message.chat.id
-    stage = ex_get_stage(chat_id)
-    time_start_period = get_one_param_db('time_start_period', chat_id)
-    id = get_one_param_db('id', chat_id)
-    current_dir = get_one_param_db('current_dir', chat_id)
-    if stage == 'end_photo_download' or stage == 'doc_gruz':
-        if document := message.document:
-            if 'files' not in os.listdir(f'drive/{id}/{time_start_period}/{current_dir}'):
-                os.mkdir(f'drive/{id}/{time_start_period}/{current_dir}/files')
-            if stage == 'end_photo_download':
-                # TODO проверка на объём файла
-                await document.download(destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/ТТН.{document['file_name'.split('.')[-1]]}")
-                ex_update(f"UPDATE users SET stage = 'doc_gruz' WHERE telegram_id = {chat_id}")
-                await bot.send_message(chat_id, 'Отлично, теперь отправьте файл на груз')
-                # TODO один или несколько файлов на груз
-            elif stage == 'doc_gruz':
-                await document.download( destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/Доки груз.{document['file_name'.split('.')[-1]]}")
-                ex_update(f"UPDATE users SET stage = 'gruz_end' WHERE telegram_id = {chat_id}")
-                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                markup.add('Старт поездки')
-                # TODO сделать когда начнёт или сразу чтобы ебланич не забыл
-                await bot.send_message(chat_id, 'Отлично, все файлы загружены, нажмите на кнопку, когда начнёте поездку', reply_markup=markup)
-        else:
-            await bot.send_message(chat_id, "С файлом что-то не так попробуйте оптравить другой файл")
-    else:
-        await bot.send_message(chat_id, 'Не знаю что ответить')
+    
 
 
 executor.start_polling(dp, skip_updates=True)
