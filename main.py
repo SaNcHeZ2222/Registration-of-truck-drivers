@@ -319,7 +319,7 @@ async def photo_handler(message):
             ex_update(f"UPDATE users SET stage = 'end_photo_download' WHERE telegram_id = {chat_id}")
             await bot.send_message(chat_id, 'Фото успешно загружены, теперь отправьте фото документов - ТТН')
     elif stage == 'get_done_ttn':
-        ex_update(f"UPDATE users SET stage = 'end_poezdka' WHERE telegram_id = {chat_id}")
+        
         await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/photo_gruz/done_ttn.jpg')
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Начать перевозку')
@@ -330,11 +330,53 @@ async def photo_handler(message):
         data = read_json_file(id_driver, time_start_period, current_dir)
         data = {**data, **all_data}
         write_json_file(id_driver, time_start_period, current_dir, data)
+        all_price = 0
+        id_truck = get_id_truck(chat_id)
+        price_1_km = get_one_param_truks('price_1_km', int(id_truck))
+        one_krit = ''
+        if price_1_km == 12:
+            one_krit = 'Площадка 0,9 до 4х осей или Корыто до 3 осей -> <b>12 руб за 1 км</b>'
+        elif price_1_km == 14:
+            one_krit = '5, 6, 7 оснвые + корыто от 4 осей -> <b>14 руб за 1 км</b>'
 
-        await bot.send_message(chat_id, 'Ваш чек')
+        # TODO добавить заявку от логиста
+        
+        raz_km = get_one_param_db('end_mileage', chat_id) - get_one_param_db('start_mileage', chat_id)
+        if raz_km <= 150:
+            all_price += 5000
+        elif 150 < raz_km <= 200:
+            all_price += 4500
+        elif 200 < raz_km <= 250:
+            all_price += 4000
+        elif 250 < raz_km <= 300:
+            all_price += 3500
+        elif 300 < raz_km <= 350:
+            all_price += 3000
+        elif 350 < raz_km <= 400:
+            all_price += 2500
+        elif 400 < raz_km <= 450:
+            all_price += 2000
+        elif 450 < raz_km <= 500:
+            all_price += 1500
+        elif 500 < raz_km <= 550:
+            all_price += 1000
+        elif 550 < raz_km <= 600:
+            all_price += 500
+        
+        # TODO сохранить это в словарь
+
+
+        two_krit = f'Надбавка за плечо -> <b>{all_price}</b>'
+
+        total = price_1_km * raz_km + all_price
+
+        s = f'1) {one_krit}\n2) {two_krit}\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+        
+            
+        await bot.send_message(chat_id, f'Ваш чек\n{s}', parse_mode='html')
         # TODO формирование чека
         # TODO добавить отдых и тд
-
+        ex_update(f"UPDATE users SET stage = 'end_poezdka' WHERE telegram_id = {chat_id}")
         await bot.send_message(chat_id, 'Фотография успешно сохранена теперь выбирайте, чем заняться дальше', reply_markup=markup)
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
