@@ -203,10 +203,10 @@ async def text_handler(message: types.Message):
             ex_update(f"UPDATE users SET stage = 'from_where' WHERE telegram_id = {chat_id}")
 
         # TODO если заявка от логиста, то подсказка
-        id_driver = get_id_driver(chat_id)
-        data = read_json_file(id_driver, time_start_period, current_dir)
+        id_driver = str(get_id_driver(chat_id))
+        data = read_order()
             
-        if id_driver in data.keys() and 'from_where_to_where' in data[id_driver].keys():
+        if id_driver in data.keys():
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(data[id_driver]['from_where_to_where'])
         else:
@@ -496,7 +496,7 @@ async def photo_handler(message):
 # @dp.message_handler(content_types='location')
 # async def location_handler(message):
 #     print(message)
-    # TODO локация так себе работает
+    # TODO сделать локацию
 
 
 executor.start_polling(dp, skip_updates=True)
