@@ -116,3 +116,15 @@ def get_all_obj(chat_id):
     a = {'telegram_id': telegram_id, 'stage': stage, 'fio': fio, 'phone': phone, 'id_truck': id_truck, 'from_where': from_where, 'time_start_period': time_start_period, 'current_dir': current_dir, 'type_drive': type_drive, 'start_mileage': start_mileage, 'dot_start': dot_start, 'd': d, 's': s, 'v': v, 'weight': weight, 'count_photo_download': count_photo_download, 'dot_end': dot_end, 'end_mileage': end_mileage}
 
     return a
+
+
+def read_order() -> dict:
+    with open(f'order.json', "r") as f:
+        data = json.load(f)
+        f.close()
+        return data
+    
+def write_order(data) -> None:
+    with open(f'order.json', "w") as f:
+        json.dump(data, f)
+        f.close()
