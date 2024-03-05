@@ -36,24 +36,21 @@ async def start_message(message: types.Message):
 
         connection.commit()
         connection.close()
+        
+        markup = types.ReplyKeyboardRemove()
+        await bot.send_message(chat_id, 'Напиши ваше ФИО', reply_markup=markup)
+    else:
+        # TODO сделать проверку на номер, что админ тоже зарегался
         if chat_id in admin:
-            # Главное меню для админа
+            ex_update(f'UPDATE users SET stage = "main" WHERE telegram_id = {chat_id}')
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add('Создать заявку')
             markup.add('Активные поездки')
             markup.add('Предыдущие поездки')
             markup.add('Вопросы')
+            await bot.send_message(chat_id, 'Главное меню', reply_markup=markup)
         else:
-            markup = types.ReplyKeyboardRemove()
-        await bot.send_message(chat_id, 'Напиши ваше ФИО', reply_markup=markup)
-    else:
-        ex_update(f'UPDATE users SET stage = "main" WHERE telegram_id = {chat_id}')
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Создать заявку')
-        markup.add('Активные поездки')
-        markup.add('Предыдущие поездки')
-        markup.add('Вопросы')
-        await bot.send_message(chat_id, 'Вы не можете выйти в меню, тк везёте груз', reply_markup=markup)
+            await bot.send_message(chat_id, 'Вы не можете выйти в меню, тк везёте груз', reply_markup=markup)
 
 
 @dp.message_handler(content_types='text')
@@ -67,17 +64,21 @@ async def text_handler(message: types.Message):
     # Регистрация
     # TODO сделать удаление заявки
     # TODO сделать просмотр заявки
+    # TODO сделать так, чтобы у того, кто делает заявку не было возможности ездить
+    
     if stage == 'start_registration': # Запрос фамилии
         ex_update(f'UPDATE users SET stage = "phone_number", fio = "{text}" WHERE telegram_id = {chat_id}')
         await bot.send_message(chat_id, "Напишите ваш номер телефона")
     elif stage == 'phone_number':
         ex_update(f'UPDATE users SET stage = "end_registration", phone = "{text}" WHERE telegram_id = {chat_id}')
-        markup = get_main_menu_markup()
         if chat_id in admin:
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add('Создать заявку')
             markup.add('Активные поездки')
             markup.add('Предыдущие поездки')
             markup.add('Вопросы')
+        else:
+            markup = get_main_menu_markup()
         await bot.send_message(chat_id, "Спасибо, регистрацию завершена", reply_markup=markup)
     elif chat_id in admin and (stage == 'main' or stage == 'start_registration' or stage == 'end_registration') and text == 'Создать заявку':
         
@@ -92,6 +93,7 @@ async def text_handler(message: types.Message):
         for i in all_id_drivers:
             markup.add(i)
         #  {id: {parametrs}}
+        # TODO убрать 
         ex_update(f'UPDATE users SET stage = "select_id_order" WHERE telegram_id = {chat_id}')
         await bot.send_message(chat_id, 'Выберите водителя, которму хотите создать заявку', reply_markup=markup)
     elif stage == 'select_id_order' and chat_id in admin:
@@ -129,38 +131,45 @@ async def text_handler(message: types.Message):
         
         await bot.send_message(chat_id, 'Введите длину, ширину, высоту через пробел\nПример 12м35см -> 12.35')
     elif stage == 'select_dhv_order':
-        # TODO сделать проверку на длину, ширину, высоту
-        id_help = get_one_param_db('help_id_truck', chat_id)
-        data = read_order()
-
-        data[id_help]['dhv'] = text
-
-        write_order(data)
-
-        ex_update(f'UPDATE users SET stage = "select_weight_order" WHERE telegram_id = {chat_id}')
         
-        await bot.send_message(chat_id, 'Введите вес в тоннах\nПример 12т523кг -> 12.523')
+        dhv = [i for i in text.split()]
+        try: 
+            float(dhv[0])
+            float(dhv[1])
+            float(dhv[2])
+            id_help = get_one_param_db('help_id_truck', chat_id)
+            data = read_order()
+
+            data[id_help]['dhv'] = text
+
+            write_order(data)
+
+            ex_update(f'UPDATE users SET stage = "select_weight_order" WHERE telegram_id = {chat_id}')
+            
+            await bot.send_message(chat_id, 'Введите вес в тоннах\nПример 12т523кг -> 12.523')
+        except Exception as e:
+            await bot.send_message(chat_id, 'Вы ввели неправильно, 3 числа через пробел')
     elif stage == 'select_weight_order':
         # TODO сделать проверку на вес
         id_help = get_one_param_db('help_id_truck', chat_id)
+        if '.' in text and text.split('.')[0].isdigit() and text.split('.')[1].isdigit():
+            data = read_order()
+            data[id_help]['weight'] = text
+            write_order(data)
 
-        data = read_order()
-        data[id_help]['weight'] = text
-        write_order(data)
-
-        ex_update(f'UPDATE users SET stage = "select_dop_uslovia_order" WHERE telegram_id = {chat_id}')
-        
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        # TODO создание всех дополнительных условий
-        markup.add('Выезд за границу РФ: 5000')
-        markup.add('Завершить создание заявки')
-        await bot.send_message(chat_id, r'Нажимайте на кнопки добавляя условия или нажмите на кнопку "Завершить создание заявки"', reply_markup=markup)
-    # TODO сделать имя, нужно оно или нет?
+            ex_update(f'UPDATE users SET stage = "select_dop_uslovia_order" WHERE telegram_id = {chat_id}')
+            
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            # TODO создание всех дополнительных условий
+            markup.add('Выезд за границу РФ: 5000')
+            markup.add('Завершить создание заявки')
+            await bot.send_message(chat_id, r'Нажимайте на кнопки добавляя условия или нажмите на кнопку "Завершить создание заявки"', reply_markup=markup)
+        else:
+            await bot.send_message(chat_id, 'Вы ввели число неправильно')
     elif stage == 'select_dop_uslovia_order':
         if text == 'Завершить создание заявки':
             ex_update(f'UPDATE users SET stage = "end_create_order" WHERE telegram_id = {chat_id}')
             markup = types.ReplyKeyboardRemove()
-            # TODO добавить кнопки
             await bot.send_message(chat_id, 'Вы завершили создание заявки', reply_markup=markup)
         else:
             id_help = get_one_param_db('help_id_truck', chat_id)
@@ -246,35 +255,58 @@ async def text_handler(message: types.Message):
     elif stage == 'start_mileage':
         if text.isdigit():
             ex_update(f"UPDATE users SET stage = 'dot_start', start_mileage = {int(text)} WHERE telegram_id = {chat_id}")
-            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add("Заявка от логиста, пока не работает кнопка")
-            await bot.send_message(chat_id, 'Введите координаты (из яндекс карт)', reply_markup=markup)
+            id_driver = str(get_one_param_db('id', chat_id))
+            data = read_order()
+            if id_driver in data.keys() and data[id_driver]['from_where_to_where'] != '0':
+                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                markup.add(data[id_driver]['from_where_to_where'])
+            else:
+                markup = types.ReplyKeyboardRemove()
+            await bot.send_message(chat_id, 'Введите координаты (из яндекс карт) или нажмите на кнопку подсказки от логиста', reply_markup=markup)
         else:
             await bot.send_message(chat_id, "Вы ввели число некоректно, попробуйте ещё раз")
     elif stage == 'dot_start':
         ex_update(f"UPDATE users SET stage = 'd', dot_start = '{text}' WHERE telegram_id = {chat_id}")
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("Заявка от логиста, пока не работает кнопка")
+        id_driver = str(get_one_param_db('id', chat_id))
+        data = read_order()
+        if id_driver in data.keys():
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(data[id_driver]['dhv'].split()[0])
+        else:
+            markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Введите <b>длину</b> в метрах и сантиметры через точку, например 11 метров 25 см будет 11.25", reply_markup=markup, parse_mode='html')
     elif stage == 'd':
         ex_update(f"UPDATE users SET stage = 's', d = '{text}' WHERE telegram_id = {chat_id}")
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("Заявка от логиста, пока не работает кнопка")
+        id_driver = str(get_one_param_db('id', chat_id))
+        data = read_order()
+        if id_driver in data.keys():
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(data[id_driver]['dhv'].split()[1])
+        else:
+            markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Введите <b>ширину</b> в метрах и сантиметры через точку, например 11 метров 25 см будет 11.25", reply_markup=markup, parse_mode='html')
     elif stage == 's':
         ex_update(f"UPDATE users SET stage = 'v', s = '{text}' WHERE telegram_id = {chat_id}")
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("Заявка от логиста, пока не работает кнопка")
+        id_driver = str(get_one_param_db('id', chat_id))
+        data = read_order()
+        if id_driver in data.keys():
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(data[id_driver]['dhv'].split()[2])
+        else:
+            markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Введите <b>высоту</b> в метрах и сантиметры через точку, например 11 метров 25 см будет 11.25", reply_markup=markup, parse_mode='html')
     elif stage == 'v':
         ex_update(f"UPDATE users SET stage = 'weight', v = '{text}' WHERE telegram_id = {chat_id}")
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("Заявка от логиста, пока не работает кнопка")
-        await bot.send_message(chat_id, "Введите вес в граммах", reply_markup=markup)
+        data = read_order()
+        id_driver = str(get_one_param_db('id', chat_id))
+        if id_driver in data.keys():
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add(data[id_driver]['weight'])
+        else:
+            markup = types.ReplyKeyboardRemove()
+        await bot.send_message(chat_id, "Введите вес в тн через точку, например 12т512кг ->12.512 или нажмите на кнопку от логиста", reply_markup=markup)
     elif stage == 'weight':
         ex_update(f"UPDATE users SET stage = 'photo_gruz', weight = '{text}' WHERE telegram_id = {chat_id}")
-        # markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        # markup.add("Заявка от логиста, пока не работает кнопка")
         markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, "Отправьте одним альбомом 4 фотографии груза", reply_markup=markup)
     # TODO сделать порожний перегон
@@ -322,6 +354,7 @@ async def text_handler(message: types.Message):
         ex_update(f"UPDATE users SET stage = 'get_koor_finish' WHERE telegram_id = {chat_id}")
 
         await bot.send_message(chat_id, 'Укажите координаты финиша', reply_markup=markup)
+        # TODO надо ли делать подсказку
     # Координаты финиша
     elif stage == 'get_koor_finish':
         ex_update(f"UPDATE users SET stage = 'end_mileage_km', dot_end = '{text}' WHERE telegram_id = {chat_id}")
@@ -386,7 +419,7 @@ async def text_handler(message: types.Message):
     elif stage == 'end_poezdka' and text == 'Закончить период':
         time_start_period = get_one_param_db('time_start_period', chat_id)
         time_end_period = datetime.datetime.now().strftime("%d.%m.%y %H:%M:%S")
-        id_driver = get_one_param_db('id', chat_id)
+        id_driver = str(get_one_param_db('id', chat_id))
         os.rename(f'drive/{id_driver}/{time_start_period}', f'drive/{id_driver}/{time_start_period} - {time_end_period}')
         ex_update(f'UPDATE users SET time_start_period = NULL, stage = "new_period" WHERE telegram_id = {chat_id}')
         id_truck = get_one_param_db('id_truck', chat_id)
@@ -436,7 +469,7 @@ async def photo_handler(message):
         markup.add('Закончить период')
 
         all_data = get_all_obj(chat_id)
-        id_driver = get_id_driver(chat_id)
+        id_driver = str(get_id_driver(chat_id))
         data = read_json_file(id_driver, time_start_period, current_dir)
         data = {**data, **all_data}
         write_json_file(id_driver, time_start_period, current_dir, data)
@@ -448,8 +481,6 @@ async def photo_handler(message):
             one_krit = 'Площадка 0,9 до 4х осей или Корыто до 3 осей -> <b>12 руб за 1 км</b>'
         elif price_1_km == 14:
             one_krit = '5, 6, 7 оснвые + корыто от 4 осей -> <b>14 руб за 1 км</b>'
-
-        # TODO добавить заявку от логиста
         
         raz_km = get_one_param_db('end_mileage', chat_id) - get_one_param_db('start_mileage', chat_id)
         if raz_km <= 150:
@@ -474,19 +505,34 @@ async def photo_handler(message):
             all_price += 500
         
         # TODO сохранить это в словарь
+        dop = ''
+        data = read_order()
 
-
+        flag_dop = 0
+        for key in data[id_driver]:
+            if 'dop' in key:
+                flag_dop = 1
+                dop += f'{key.split("dop")[-1]}'
+                all_price += data[key]
+        # TODO сделать заявку только неактивному пользователю
+        # TODO сделать возврат к предыдущему шагу 
+        # TODO сделать активный пользователь или нет
         two_krit = f'Надбавка за плечо -> <b>{all_price}</b>'
 
         total = price_1_km * raz_km + all_price
 
-        s = f'1) {one_krit}\n2) {two_krit}\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+        if flag_dop:
+            s = f'1) {one_krit}\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n{dop}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+        else:
+            s = f'1) {one_krit} = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         
             
         await bot.send_message(chat_id, f'Ваш чек\n{s}', parse_mode='html')
         # TODO формирование чека
         # TODO добавить отдых и тд
-        # TODO сделать очистку заявки
+        data = read_order()
+        del data[id_driver]
+        write_order(data)
         ex_update(f"UPDATE users SET stage = 'end_poezdka', active = 0 WHERE telegram_id = {chat_id}")
         await bot.send_message(chat_id, 'Фотография успешно сохранена теперь выбирайте, чем заняться дальше', reply_markup=markup)
     else:
