@@ -5,6 +5,8 @@ from config import token
 import os
 import datetime
 import json
+import pandas
+
 
 token = token
 # trucks_delivery_bot
@@ -119,6 +121,7 @@ async def text_handler(message: types.Message):
         
         await bot.send_message(chat_id, 'Введите координаты или нажмите 0\nПример: 55.2331 28.2221')
         # TODO сделать обработку нуля 
+        # TODO сделать финиш
     elif stage == 'select_where_order1':
         id_help = get_one_param_db('help_id_truck', chat_id)
         data = read_order()
@@ -473,6 +476,8 @@ async def photo_handler(message):
         data = read_json_file(id_driver, time_start_period, current_dir)
         data = {**data, **all_data}
         write_json_file(id_driver, time_start_period, current_dir, data)
+        # TODO переименовать строки короче
+        pandas.DataFrame(data, index=[0]).transpose().to_excel(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.xlsx')
         all_price = 0
         id_truck = get_id_truck(chat_id)
         price_1_km = get_one_param_truks('price_1_km', int(id_truck))
@@ -481,7 +486,7 @@ async def photo_handler(message):
             one_krit = 'Площадка 0,9 до 4х осей или Корыто до 3 осей -> <b>12 руб за 1 км</b>'
         elif price_1_km == 14:
             one_krit = '5, 6, 7 оснвые + корыто от 4 осей -> <b>14 руб за 1 км</b>'
-        
+        # TODO добавить изменение числа суточных через excel
         raz_km = get_one_param_db('end_mileage', chat_id) - get_one_param_db('start_mileage', chat_id)
         if raz_km <= 150:
             all_price += 5000
@@ -508,33 +513,35 @@ async def photo_handler(message):
         dop = ''
         data = read_order()
 
+        two_krit = f'Надбавка за плечо -> <b>{all_price}</b>'
+
         flag_dop = 0
-        for key in data[id_driver]:
+        for key in data[id_driver].keys():
             if 'dop' in key:
                 flag_dop = 1
-                dop += f'{key.split("dop")[-1]}'
-                all_price += data[key]
+                dop += f'{key.replace("dop ", "")}'
+                all_price += data[id_driver][key]
         # TODO сделать заявку только неактивному пользователю
         # TODO сделать возврат к предыдущему шагу 
         # TODO сделать активный пользователь или нет
-        two_krit = f'Надбавка за плечо -> <b>{all_price}</b>'
+        # TODO добавить дополнительно денег
 
         total = price_1_km * raz_km + all_price
 
         if flag_dop:
-            s = f'1) {one_krit}\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n{dop}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+            s = f'1) {one_krit}\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n<b>{dop}</b>\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         else:
             s = f'1) {one_krit} = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         
-            
-        await bot.send_message(chat_id, f'Ваш чек\n{s}', parse_mode='html')
-        # TODO формирование чека
-        # TODO добавить отдых и тд
         data = read_order()
         del data[id_driver]
         write_order(data)
         ex_update(f"UPDATE users SET stage = 'end_poezdka', active = 0 WHERE telegram_id = {chat_id}")
-        await bot.send_message(chat_id, 'Фотография успешно сохранена теперь выбирайте, чем заняться дальше', reply_markup=markup)
+        
+        await bot.send_message(chat_id, f'Ваш чек\n{s}', parse_mode='html')
+        # TODO формирование чека
+        # TODO добавить отдых и тд
+       
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
 
