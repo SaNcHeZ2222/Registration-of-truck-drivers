@@ -40,6 +40,8 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
 # Уточнить у Фила, вес участвует в подсчёте формул?
 cursor.execute("""INSERT INTO trucks(name_auto, number, price_1_km, weight_avto) VALUES ('Первый трак', 'y222yy77', 12, 33)""")
 
+cursor.execute("""INSERT INTO trucks(name_auto, number, price_1_km, weight_avto) VALUES ('Второй трак', 'а123аа164', 15, 20)""")
+
 # print(*cursor.execute('SELECT time_start_period FROM users WHERE telegram_id = 703194398'))
 
 

@@ -43,7 +43,7 @@ def get_main_menu_markup() -> types.ReplyKeyboardMarkup:
     return markup
 
 
-def get_id_driver(chat_id) -> int:
+def get_id_driver(chat_id):
     connection = sqlite3.connect('base.db', check_same_thread=True)
     cursor = connection.cursor()
 
