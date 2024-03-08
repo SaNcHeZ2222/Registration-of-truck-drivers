@@ -37,6 +37,19 @@ def ex_get_trucks_list():
 
     return trucks 
 
+def ex_get_active_drive():
+    connection = sqlite3.connect('base.db', check_same_thread=True)
+    cursor = connection.cursor()
+
+    cursor.execute(f'SELECT id, fio FROM users WHERE active = 1')
+    trucks = cursor.fetchall()
+
+    connection.commit()
+    connection.close()
+
+    return trucks 
+
+
 def get_main_menu_markup() -> types.ReplyKeyboardMarkup:
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("Выбрать авто")

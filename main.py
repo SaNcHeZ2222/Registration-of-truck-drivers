@@ -70,8 +70,19 @@ async def text_handler(message: types.Message):
     if stage == 'start_registration': # Запрос фамилии
         ex_update(f'UPDATE users SET stage = "phone_number", fio = "{text}" WHERE telegram_id = {chat_id}')
         await bot.send_message(chat_id, "Напишите ваш номер телефона")
-    elif stage == 'phone_number':
-        ex_update(f'UPDATE users SET stage = "end_registration", phone = "{text}" WHERE telegram_id = {chat_id}')
+    elif text == 'Вернуться в главное меню' and chat_id in admin:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Создать заявку')
+        markup.add('Активные поездки')
+        markup.add('Предыдущие поездки')
+        markup.add('Вопросы')
+        await bot.send_message(chat_id, 'Вы в главном меню', reply_markup=markup)
+        ex_update(f'UPDATE users SET stage = "main" WHERE telegram_id = {chat_id}')
+    elif stage == 'phone_number' or (stage == 'active_drive' and text == 'Вернуться в меню'):
+        if text != 'Вернуться в меню':
+            ex_update(f'UPDATE users SET stage = "end_registration", phone = "{text}" WHERE telegram_id = {chat_id}')
+        else:
+            ex_update(f'UPDATE users SET stage = "end_registration" WHERE telegram_id = {chat_id}')
         if chat_id in admin:
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add('Создать заявку')
@@ -81,6 +92,81 @@ async def text_handler(message: types.Message):
         else:
             markup = get_main_menu_markup()
         await bot.send_message(chat_id, "Спасибо, регистрацию завершена", reply_markup=markup)
+    # Активные поездки
+    elif chat_id in admin and (stage == 'main' or stage == 'start_registration' or stage == 'end_registration') and text == 'Активные поездки':
+        ex_update(f'UPDATE users SET stage = "active_drive" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        all_active_driver = ex_get_active_drive()
+        for i in all_active_driver:
+            markup.add(' '.join(map(str, i)))
+            # TODO убрать admin_id
+        markup.add('Вернуться в меню')
+        await bot.send_message(chat_id, 'Выберите айди', reply_markup=markup)
+    elif chat_id in admin and stage == 'active_drive' and text in (' '.join(map(str, i)) for i in ex_get_active_drive()):
+        id_driver = str(text.split()[0])
+        ex_update(f'UPDATE users SET stage = "dop_uslovia", active = "{id_driver}" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Добавить условия')
+        markup.add('Удалить условия')
+        # markup.add('Премия дополнительная: 5000')
+        # markup.add('Добавить своё условие')
+        
+        await bot.send_message(chat_id, 'Добавьте условия или удалите', reply_markup=markup)
+    elif stage == 'dop_uslovia' and text == 'Добавить условия':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Премия дополнительная: 5000')
+        markup.add('Добавить своё условие')
+        markup.add('Закончить добавку условий')
+        ex_update(f'UPDATE users SET stage = "dop_uslovia_add" WHERE telegram_id = {chat_id}')
+        await bot.send_message(chat_id, 'Нажмите на условия, чтобы добавить', reply_markup=markup)
+    elif stage == 'dop_uslovia' and text == 'Удалить условия':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        id_driver = get_one_param_db('active', chat_id)
+        active_session = sorted(os.listdir(f'drive/{id_driver}'), reverse=True)[0]
+        active_dir = sorted(os.listdir(f'drive/{id_driver}/{active_session}'), key=lambda x: os.path.getctime(f'drive/{id_driver}/{active_session}'), reverse=True)[0]
+        data = read_json_file(id_driver, active_session, active_dir)
+        all_uslovia = [i for i in data if 'dop' in i]
+        for i in all_uslovia:
+            markup.add(i)
+        markup.add("Вернуться в главное меню")
+        ex_update(f'UPDATE users SET stage = "dop_uslovia_remove" WHERE telegram_id = {chat_id}')
+        await bot.send_message(chat_id, 'Нажмите, чтобы удалить условие', reply_markup=markup)
+    elif stage == 'dop_uslovia_remove':
+        id_driver = get_one_param_db('active', chat_id)
+        active_session = sorted(os.listdir(f'drive/{id_driver}'), reverse=True)[0]
+        active_dir = sorted(os.listdir(f'drive/{id_driver}/{active_session}'), key=lambda x: os.path.getctime(f'drive/{id_driver}/{active_session}'), reverse=True)[0]
+        data = read_json_file(id_driver, active_session, active_dir)
+        del data[text]
+        all_uslovia = [i for i in data if 'dop' in i]
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        for i in all_uslovia:
+            markup.add(i)
+        markup.add("Вернуться в главное меню")
+        write_json_file(id_driver, active_session, active_dir, data)
+        ex_update(f'UPDATE users SET stage = "dop_uslovia_remove_done" WHERE telegram_id = {chat_id}')
+        await bot.send_message(chat_id, f'Вы удалили {text}', reply_markup=markup)
+    elif stage == 'dop_uslovia_add':
+        if text == 'Добавить своё условие':
+            ex_update(f'UPDATE users SET stage = "dop_uslovia_add_new" WHERE telegram_id = {chat_id}')
+            await bot.send_message(chat_id, "Напишите новое название условия")
+        else:
+            if text == 'Закончить добавку условий':
+                ex_update(f'UPDATE users SET stage = "main" WHERE telegram_id = {chat_id}')
+                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                markup.add('Создать заявку')
+                markup.add('Активные поездки')
+                markup.add('Предыдущие поездки')
+                markup.add('Вопросы')
+                await bot.send_message(chat_id, 'Вы завершили добавку условий', reply_markup=markup)
+            else:
+                id_driver = get_one_param_db('active', chat_id)
+                active_session = sorted(os.listdir(f'drive/{id_driver}'), reverse=True)[0]
+                active_dir = sorted(os.listdir(f'drive/{id_driver}/{active_session}'), key=lambda x: os.path.getctime(f'drive/{id_driver}/{active_session}'), reverse=True)[0]
+                data = read_json_file(id_driver, active_session, active_dir)
+                data[f"dop {text.split(':')[0]}"] = text.split(':')[1]
+                write_json_file(id_driver, active_session, active_dir, data)
+                await bot.send_message(chat_id, f'Вы добавили {text}')
+        # TODO сделать оптравку текущих
     elif chat_id in admin and (stage == 'main' or stage == 'start_registration' or stage == 'end_registration') and text == 'Создать заявку':
         
         connection = sqlite3.connect('base.db', check_same_thread=True)
@@ -531,10 +617,10 @@ async def photo_handler(message):
         all_data = get_all_obj(chat_id)
         id_driver = str(get_id_driver(chat_id))
         data = read_json_file(id_driver, time_start_period, current_dir)
-        data = {**data, **all_data}
-        write_json_file(id_driver, time_start_period, current_dir, data)
+        data1 = {**data, **all_data}
+        write_json_file(id_driver, time_start_period, current_dir, data1)
         # TODO переименовать строки короче
-        pandas.DataFrame(data, index=[0]).transpose().to_excel(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.xlsx')
+        pandas.DataFrame(data1, index=[0]).transpose().to_excel(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.xlsx')
         all_price = 0
         id_truck = get_id_truck(chat_id)
         price_1_km = get_one_param_truks('price_1_km', int(id_truck))
@@ -577,8 +663,14 @@ async def photo_handler(message):
             for key in data[id_driver].keys():
                 if 'dop' in key:
                     flag_dop = 1
-                    dop += f'{key.replace("dop ", "")}'
+                    dop += f'{key.replace("dop ", "")}; '
                     all_price += data[id_driver][key]
+        for key in data1.keys():
+            if 'dop' in key:
+                flag_dop = 1
+                dop += f'{key.replace("dop ", "")} = {data1[key]}\n'
+                all_price += int(data1[key])
+        
         # TODO сделать заявку только неактивному пользователю
         # TODO сделать возврат к предыдущему шагу 
         # TODO сделать активный пользователь или нет
@@ -591,9 +683,9 @@ async def photo_handler(message):
         elif one_krit:
             s = f'1) {one_krit} = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         elif flag_dop:
-            s = f'1)Цена за поездку (дорога) = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n<b>{dop}</b>\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+            s = f'1) Цена за поездку (дорога) = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n<b>{dop}</b>\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         else:
-            s = f'1)Цена за поездку (дорога) = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+            s = f'1) Цена за поездку (дорога) = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         data = read_order()
         if id_driver in data.keys():
             del data[id_driver]
