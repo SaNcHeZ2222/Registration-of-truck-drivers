@@ -1,3 +1,5 @@
+import zipfile
+
 from aiogram import *
 import sqlite3
 from other_func import *
@@ -70,7 +72,7 @@ async def text_handler(message: types.Message):
     if stage == 'start_registration': # Запрос фамилии
         ex_update(f'UPDATE users SET stage = "phone_number", fio = "{text}" WHERE telegram_id = {chat_id}')
         await bot.send_message(chat_id, "Напишите ваш номер телефона")
-    elif text == 'Вернуться в главное меню' and chat_id in admin:
+    elif (text == 'Вернуться в главное меню' or text == 'Вернуться в меню')  and chat_id in admin:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Создать заявку')
         markup.add('Активные поездки')
@@ -92,6 +94,68 @@ async def text_handler(message: types.Message):
         else:
             markup = get_main_menu_markup()
         await bot.send_message(chat_id, "Спасибо, регистрацию завершена", reply_markup=markup)
+    # Предыдущие поездки
+    elif text == 'Предыдущие поездки' and chat_id in admin:
+        ex_update(f'UPDATE users SET stage = "pred_drivers" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        connection = sqlite3.connect(f'base.db', check_same_thread=True)
+        cursor = connection.cursor()
+
+        all_id_drivers = {f'{i[0]} {i[1]}' for i in cursor.execute('SELECT id, fio FROM users')}
+
+        connection.commit()
+        connection.close()
+
+        for i in all_id_drivers:
+            markup.add(i)
+        markup.add('Вернуться в меню')
+        # TODO сделать проверку, чтобы в списке были только пользователи, который ездили уже
+        # TODO сделать отбор только предыдущих поездок
+
+        await bot.send_message(chat_id, 'Выберите пользователя, чьи поездки хотите посмотреть', reply_markup=markup)
+    elif stage == 'pred_drivers':
+        id_driver = text.split()[0]
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        list_dir_period = os.listdir(f'drive/{id_driver}')
+        for i in list_dir_period:
+            markup.add(i)
+        markup.add('Вернуться в меню')
+        ex_update(f'UPDATE users SET stage = "pred_drivers_period", d = "{id_driver}" WHERE telegram_id = {chat_id}')
+        await bot.send_message(chat_id, 'Выберите период', reply_markup=markup)
+    elif stage == 'pred_drivers_period':
+        period = text
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        id_driver = get_one_param_db('d', chat_id)
+        list_dir_poezdka = os.listdir(f'drive/{id_driver}/{period}')
+        for i in list_dir_poezdka:
+            markup.add(i)
+        markup.add('Вернуться в меню')
+        ex_update(f'UPDATE users SET stage = "pred_drivers_poezdka", s = "{period}" WHERE telegram_id = {chat_id}')
+        await bot.send_message(chat_id, 'Выберите поездку', reply_markup=markup)
+    elif stage == 'pred_drivers_poezdka':
+        ex_update(f'UPDATE users SET stage = "pred_drivers_done", v = "{text}" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Скачать папку поездки")
+        markup.add('Изменить поездку')
+        markup.add('Вернуться в меню')
+        await bot.send_message(chat_id, 'Выберите действие', reply_markup=markup)
+    elif text == 'Скачать папку поездки' and chat_id in admin:
+        id_driver = get_one_param_db("d", chat_id)
+        period = get_one_param_db("s", chat_id)
+        poezdka = get_one_param_db("v", chat_id)
+        if 'info.json' in os.listdir(f'drive/{id_driver}/{period}/{poezdka}'):
+            # TODO формируем excel и потравляем и отправляем всю папку
+            # TODO отправляем файлы и фото на груз
+            # TODO сделать excel 
+            with zipfile.ZipFile(f"drive/{id_driver}/{period}/{poezdka}/all_info.zip", 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for folder_name, subfolders, files in os.walk(f'drive/{id_driver}/{period}/{poezdka}'):
+                    for file in files:
+                        file_path = os.path.join(folder_name, file)
+                        zip_file.write(file_path, os.path.relpath(file_path, f'drive/{id_driver}/{period}/{poezdka}'))
+            with open(f"drive/{id_driver}/{period}/{poezdka}/all_info.zip", 'rb') as zip_file:
+                await bot.send_document(chat_id, (f'Папка {id_driver}/{period}/{poezdka}.zip', zip_file))
+            os.remove(f"drive/{id_driver}/{period}/{poezdka}/all_info.zip")
+            await bot.send_message(chat_id, 'Вот все ваши данные о этой поездке')
     # Активные поездки
     elif chat_id in admin and (stage == 'main' or stage == 'start_registration' or stage == 'end_registration') and text == 'Активные поездки':
         ex_update(f'UPDATE users SET stage = "active_drive" WHERE telegram_id = {chat_id}')
@@ -693,7 +757,7 @@ async def photo_handler(message):
         ex_update(f"UPDATE users SET stage = 'end_poezdka', active = 0 WHERE telegram_id = {chat_id}")
         
         await bot.send_message(chat_id, f'Ваш чек\n{s}', parse_mode='html')
-        # TODO формирование чека
+        await bot.send_message(chat_id, 'Выберите что будете заниматься дальше', reply_markup=markup)
         # TODO добавить отдых и тд
        
     else:
