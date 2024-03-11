@@ -32,11 +32,15 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     count_photo_download INTEGER DEFAULT 0,
     dot_end TEXT,
     end_mileage BIGINT,
-    empty_race INTEGER DEFAULT 0
+    empty_race INTEGER DEFAULT 0,
+    active int DEFAULT 0,
+    help_id_truck TEXT
 )""")
 
 # Уточнить у Фила, вес участвует в подсчёте формул?
 cursor.execute("""INSERT INTO trucks(name_auto, number, price_1_km, weight_avto) VALUES ('Первый трак', 'y222yy77', 12, 33)""")
+
+cursor.execute("""INSERT INTO trucks(name_auto, number, price_1_km, weight_avto) VALUES ('Второй трак', 'а123аа164', 15, 20)""")
 
 # print(*cursor.execute('SELECT time_start_period FROM users WHERE telegram_id = 703194398'))
 
