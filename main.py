@@ -1,7 +1,4 @@
 import zipfile
-
-from aiogram import *
-import sqlite3
 from other_func import *
 from config import token
 import os
@@ -111,7 +108,6 @@ async def text_handler(message: types.Message):
         markup.add('Вернуться в меню')
         # TODO сделать проверку, чтобы в списке были только пользователи, который ездили уже
         # TODO сделать отбор только предыдущих поездок
-
         await bot.send_message(chat_id, 'Выберите пользователя, чьи поездки хотите посмотреть', reply_markup=markup)
     elif stage == 'pred_drivers':
         id_driver = text.split()[0]
@@ -157,6 +153,11 @@ async def text_handler(message: types.Message):
             os.remove(f"drive/{id_driver}/{period}/{poezdka}/all_info.zip")
             await bot.send_message(chat_id, 'Вот все ваши данные о этой поездке')
     # Активные поездки
+    elif text == 'Изменить поездку':
+        ex_update(f'UPDATE users SET stage = "pred_drivers_edit" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Вернуться в меню")
+        await bot.send_message(chat_id, "Отправьте excel с новыми данными")
     elif chat_id in admin and (stage == 'main' or stage == 'start_registration' or stage == 'end_registration') and text == 'Активные поездки':
         ex_update(f'UPDATE users SET stage = "active_drive" WHERE telegram_id = {chat_id}')
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -760,6 +761,26 @@ async def photo_handler(message):
         await bot.send_message(chat_id, 'Выберите что будете заниматься дальше', reply_markup=markup)
         # TODO добавить отдых и тд
        
+    else:
+        await bot.send_message(chat_id, 'Не знаю что ответить')
+
+
+#
+@dp.message_handler(content_types='document')
+async def file_handler(message):
+    chat_id = message.chat.id
+    stage = ex_get_stage(chat_id)
+    time_start_period = get_one_param_db('time_start_period', chat_id)
+    if stage == 'pred_drivers_edit':
+        if document := message.document:
+            id_driver = get_one_param_db("d", chat_id)
+            period = get_one_param_db("s", chat_id)
+            poezdka = get_one_param_db("v", chat_id)
+            await document.download(destination_file=f"drive/{id_driver}/{period}/{poezdka}/edit_info.xlsx")
+            ex_update(f"UPDATE users SET stage = 'end_edit_pred_drivers' WHERE telegram_id = {chat_id}")
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('')
+            await bot.send_message(chat_id, 'Отлично, вы изменили excel файл', reply_markup=markup)
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
 
