@@ -467,8 +467,8 @@ async def text_handler(message: types.Message):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         id_driver = str(get_one_param_db('id', chat_id))
         data = read_order()
-        if id_driver in data.keys() :
-            markup.add(data[id_driver]['name_auto'])
+        if id_driver in data.keys():
+            markup.add(data[id_driver]['name_gruz'])
         markup.add('Вернуться к вводу координат')
         await bot.send_message(chat_id, "Введите <b>название груза</b>", reply_markup=markup, parse_mode='html')
     elif stage == 'dot_start2' or (text == 'Вернуться к вводу длины' and stage == 's'):
@@ -838,6 +838,44 @@ async def text_handler(message: types.Message):
             elif 550 < raz_km <= 600:
                 plecho += 500
 
+            price_1_km = trailer[1]
+
+            # TODO сделать отображение за что получает надбавку
+            s = float(get_one_param_db('s', chat_id))
+
+            # За ширину
+            if 3.5 <= s <= 4.0:
+                price_1_km += 2
+            elif 4.1 <= s <= 4.5:
+                price_1_km += 4
+            elif 4.51 <= s <= 5.0:
+                price_1_km += 6
+            elif 5.0 < s:
+                price_1_km += 8
+
+            # За высоту
+            total_height = float(get_one_param_db('total_height', chat_id))
+            if 4.51 <= total_height <= 5.0:
+                price_1_km += 2
+            elif 5.0 <= total_height:
+                price_1_km += 4
+
+            # За длину
+            total_lenght = float(get_one_param_db('total_lenght', chat_id))
+            if total_lenght > 30:
+                price_1_km += 4
+            elif total_lenght > 25:
+                price_1_km += 2
+
+            # За вес
+            weight = float(get_one_param_db('weight', chat_id))
+            if 33 <= weight <= 44:
+                price_1_km += 2
+            elif 45 <= weight <= 69:
+                price_1_km += 10
+            elif 70 < weight:
+                price_1_km += 15
+
             info_excel = {"ФИО водителя": info_json['fio'],
                          "Номер водителя": info_json['phone'],
                          "Тягач": f"{truck[0]} {truck[1]} {truck[2]}",
@@ -859,7 +897,7 @@ async def text_handler(message: types.Message):
                          "Координаты старта": info_json['dot_start'],
                          "Координаты финиша": info_json['dot_end'],
                          "Заработал:": "",
-                         "За км": f"{trailer[1] * (raz_km)}",
+                         "За км": f"{price_1_km * (raz_km)}",
                          "За плечо": plecho,
                          "Надбавки": ""
                          }
