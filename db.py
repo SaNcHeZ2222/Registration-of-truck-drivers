@@ -46,7 +46,11 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     name_gruz TEXT,
     total_lenght TEXT,
     total_height TEXT,
-    mega_dop_name TEXT
+    mega_dop_name TEXT,
+    count_osi INTEGER DEFAULT 1,
+    count_ttn INTEGER DEFAULT 1,
+    count_doc INTEGER DEFAULT 1
+    
 )""")
 
 cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('﻿Volvo', 'Желтый', 'С203УВ178')")
