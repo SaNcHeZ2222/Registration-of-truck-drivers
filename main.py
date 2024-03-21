@@ -29,7 +29,6 @@ async def start_message(message: types.Message):
 
     connection.commit()
     connection.close()
-    # TODO Сделать проверку на start, чтобы при нажатии ничего не сбрасывалось
 
     if chat_id not in all_id_drivers:
         connection = sqlite3.connect('base.db', check_same_thread=True)
@@ -43,7 +42,6 @@ async def start_message(message: types.Message):
         markup = types.ReplyKeyboardRemove()
         await bot.send_message(chat_id, 'Напиши ваше ФИО', reply_markup=markup)
     else:
-        # TODO сделать проверку на номер, что админ тоже зарегался
         if chat_id in admin:
             ex_update(f'UPDATE users SET stage = "main" WHERE telegram_id = {chat_id}')
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -61,13 +59,6 @@ async def text_handler(message: types.Message):
     chat_id = message.chat.id
     stage = ex_get_stage(chat_id)
     text = message.text
-    # TODO сделать проверку, что можешь что-то сделать | phone != NULL
-    # if chat_id: 
-    #     return
-    # Регистрация
-    # TODO сделать удаление заявки
-    # TODO сделать просмотр заявки
-    
     if stage == 'start_registration': # Запрос фамилии
         ex_update(f'UPDATE users SET stage = "phone_number", fio = "{text}" WHERE telegram_id = {chat_id}')
         await bot.send_message(chat_id, "Напишите ваш номер телефона")
@@ -188,17 +179,35 @@ async def text_handler(message: types.Message):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Добавить условия')
         markup.add('Удалить условия')
-        # markup.add('Премия дополнительная: 5000')
-        # markup.add('Добавить своё условие')
-        
-        await bot.send_message(chat_id, 'Добавьте условия или удалите', reply_markup=markup)
+        markup.add('Вернуться в меню')
+        current_dir = get_one_param_db_id('current_dir', int(id_driver))
+        await bot.send_message(chat_id, f'Поездка: {current_dir}', reply_markup=markup)
     elif stage == 'dop_uslovia' and text == 'Добавить условия':
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Премия дополнительная: 5000')
-        markup.add('Добавить своё условие')
-        markup.add('Закончить добавку условий')
+        markup.add("Вернуться в меню")
         ex_update(f'UPDATE users SET stage = "dop_uslovia_add" WHERE telegram_id = {chat_id}')
-        await bot.send_message(chat_id, 'Нажмите на условия, чтобы добавить', reply_markup=markup)
+        await bot.send_message(chat_id, 'Напишите название условия', reply_markup=markup)
+    elif stage == 'dop_uslovia_add':
+        ex_update(f'UPDATE users SET stage = "dop_uslovia_price", s = "{text}" WHERE telegram_id = {chat_id}')
+        await bot.send_message(chat_id, 'Напишите цену одним чисом\n-----------\nПример: 5000')
+    elif stage == 'dop_uslovia_price':
+        try:
+            name_uslovie = get_one_param_db('s', chat_id)
+            ex_update(f'UPDATE users SET stage = "dop_uslovia_price_done" WHERE telegram_id = {chat_id}')
+            id_driver = get_one_param_db('active', chat_id)
+            active_session = sorted(os.listdir(f'drive/{id_driver}'), reverse=True)[0]
+            active_dir = sorted(os.listdir(f'drive/{id_driver}/{active_session}'), key=lambda x: os.path.getctime(f'drive/{id_driver}/{active_session}'), reverse=True)[0]
+            data = read_json_file(id_driver, active_session, active_dir)
+            data[f"dop {name_uslovie}"] = int(text)
+            write_json_file(id_driver, active_session, active_dir, data)
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Вернуться в меню')
+            await bot.send_message(chat_id, f'Вы добавили <b>{name_uslovie}</b> с ценой <b>{text}</b>', parse_mode='html')
+        except Exception as e:
+            await bot.send_message(chat_id, "Вы ввели число неправильно!")
+
+
+
     elif stage == 'dop_uslovia' and text == 'Удалить условия':
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         id_driver = get_one_param_db('active', chat_id)
@@ -225,28 +234,6 @@ async def text_handler(message: types.Message):
         write_json_file(id_driver, active_session, active_dir, data)
         ex_update(f'UPDATE users SET stage = "dop_uslovia_remove_done" WHERE telegram_id = {chat_id}')
         await bot.send_message(chat_id, f'Вы удалили {text}', reply_markup=markup)
-    elif stage == 'dop_uslovia_add':
-        if text == 'Добавить своё условие':
-            ex_update(f'UPDATE users SET stage = "dop_uslovia_add_new" WHERE telegram_id = {chat_id}')
-            await bot.send_message(chat_id, "Напишите новое название условия")
-        else:
-            if text == 'Закончить добавку условий':
-                ex_update(f'UPDATE users SET stage = "main" WHERE telegram_id = {chat_id}')
-                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-                markup.add('Создать заявку')
-                markup.add('Активные поездки')
-                markup.add('Предыдущие поездки')
-                markup.add('Вопросы')
-                await bot.send_message(chat_id, 'Вы завершили добавку условий', reply_markup=markup)
-            else:
-                id_driver = get_one_param_db('active', chat_id)
-                active_session = sorted(os.listdir(f'drive/{id_driver}'), reverse=True)[0]
-                active_dir = sorted(os.listdir(f'drive/{id_driver}/{active_session}'), key=lambda x: os.path.getctime(f'drive/{id_driver}/{active_session}'), reverse=True)[0]
-                data = read_json_file(id_driver, active_session, active_dir)
-                data[f"dop {text.split(':')[0]}"] = text.split(':')[1]
-                write_json_file(id_driver, active_session, active_dir, data)
-                await bot.send_message(chat_id, f'Вы добавили {text}')
-        # TODO сделать оптравку текущих
     elif chat_id in admin and (stage == 'main' or stage == 'start_registration' or stage == 'end_registration') and text == 'Создать заявку':
         
         connection = sqlite3.connect('base.db', check_same_thread=True)
@@ -259,8 +246,6 @@ async def text_handler(message: types.Message):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         for i in all_id_drivers:
             markup.add(i)
-        #  {id: {parametrs}}
-        # TODO убрать 
         ex_update(f'UPDATE users SET stage = "select_id_order" WHERE telegram_id = {chat_id}')
         await bot.send_message(chat_id, 'Выберите водителя, которму хотите создать заявку', reply_markup=markup)
     elif stage == 'select_id_order' and chat_id in admin:
@@ -282,17 +267,14 @@ async def text_handler(message: types.Message):
 
         write_order(data)
 
-        ex_update(f'UPDATE users SET stage = "select_where_order1" WHERE telegram_id = {chat_id}')
+        ex_update(f'UPDATE users SET stage = "select_name_gruz" WHERE telegram_id = {chat_id}')
         
-        await bot.send_message(chat_id, 'Введите координаты или нажмите 0\nПример: 55.2331 28.2221')
-        # TODO сделать обработку нуля 
-        # TODO сделать финиш
-
-    elif stage == 'select_where_order1':
+        await bot.send_message(chat_id, 'Введите имя груза')
+    elif stage == 'select_name_gruz':
         id_help = get_one_param_db('help_id_truck', chat_id)
         data = read_order()
 
-        data[id_help]['coordinates'] =  text
+        data[id_help]['name_gruz'] = text
 
         write_order(data)
 
@@ -470,11 +452,7 @@ async def text_handler(message: types.Message):
                 ex_update(f"UPDATE users SET stage = 'dot_start1', start_mileage = {int(text)} WHERE telegram_id = {chat_id}")
             else:
                 ex_update(f"UPDATE users SET stage = 'dot_start1' WHERE telegram_id = {chat_id}")
-            id_driver = str(get_one_param_db('id', chat_id))
-            data = read_order()
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            if id_driver in data.keys() and data[id_driver]['coordinates'] != '0':
-                markup.add(data[id_driver]['coordinates'])
             markup.add('Вернуться к вводу данных с одометра')
             await bot.send_message(chat_id, 'Введите координаты (из яндекс карт) или нажмите на кнопку подсказки от логиста', reply_markup=markup)
 
@@ -487,6 +465,10 @@ async def text_handler(message: types.Message):
             ex_update(f"UPDATE users SET stage = 'dot_start2' WHERE telegram_id = {chat_id}")
 
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        id_driver = str(get_one_param_db('id', chat_id))
+        data = read_order()
+        if id_driver in data.keys() :
+            markup.add(data[id_driver]['name_auto'])
         markup.add('Вернуться к вводу координат')
         await bot.send_message(chat_id, "Введите <b>название груза</b>", reply_markup=markup, parse_mode='html')
     elif stage == 'dot_start2' or (text == 'Вернуться к вводу длины' and stage == 's'):
@@ -501,7 +483,7 @@ async def text_handler(message: types.Message):
         if id_driver in data.keys():
             markup.add(data[id_driver]['dhv'].split()[0])
         markup.add('Вернуться к вводу имя груза')
-        await bot.send_message(chat_id, "Померяйте длину груза и укажите\n————————————————\nПример: (12.01)", reply_markup=markup, parse_mode='html')
+        await bot.send_message(chat_id, "Померяйте <b>длину</b> груза и укажите\n————————————————\nПример: (12.01)", reply_markup=markup, parse_mode='html')
     elif stage == 'd' or (text == 'Вернуться к вводу ширины' and stage == 'v'):
         # TODO сделать проверку на длину через точку
         if text != 'Вернуться к вводу ширины':
@@ -514,7 +496,7 @@ async def text_handler(message: types.Message):
         if id_driver in data.keys():
             markup.add(data[id_driver]['dhv'].split()[1])
         markup.add('Вернуться к вводу длины')
-        await bot.send_message(chat_id, "Померяйте ширину груза и укажите\n————————————————\nПример: (12.01)", reply_markup=markup, parse_mode='html')
+        await bot.send_message(chat_id, "Померяйте <b>ширину</b> груза и укажите\n————————————————\nПример: (12.01)", reply_markup=markup, parse_mode='html')
     elif stage == 's' or (text == 'Вернуться к вводу высоты' and stage == 'weight'):
         # TODO сделать проверку на ввод ширины через точку
         if text != 'Вернуться к вводу высоты':
@@ -528,7 +510,7 @@ async def text_handler(message: types.Message):
         if id_driver in data.keys():
             markup.add(data[id_driver]['dhv'].split()[2])
         markup.add('Вернуться к вводу ширины')
-        await bot.send_message(chat_id, "Померяйте высоту груза и укажите\n————————————————\nПример: (12.01)", reply_markup=markup, parse_mode='html')
+        await bot.send_message(chat_id, "Померяйте <b>высоту</b> груза и укажите\n————————————————\nПример: (12.01)", reply_markup=markup, parse_mode='html')
     elif stage == 'v' or (text == 'Вернуться к вводу веса' and stage == 'dlina_avto'):
         # TODO сделать проверку на ввод высоты через точку
         if text != 'Вернуться к вводу веса':
@@ -545,7 +527,7 @@ async def text_handler(message: types.Message):
         if text == 'Вернуться к вводу веса':
             pass
             # TODO сделать обнуление счётчика фото
-        await bot.send_message(chat_id, "Померяйте вес груза и укажите\n————————————————\nПример: (12.123)", reply_markup=markup)
+        await bot.send_message(chat_id, "Померяйте <b>вес</b> груза и укажите\n————————————————\nПример: (12.123)", reply_markup=markup, parse_mode='html')
     elif stage == 'weight' or text == 'Вернуться к длины поезда':
         if text != 'Вернуться к длины поезда':
             ex_update(f"UPDATE users SET stage = 'dlina_avto', weight = '{text}' WHERE telegram_id = {chat_id}")
@@ -553,7 +535,7 @@ async def text_handler(message: types.Message):
             ex_update(f"UPDATE users SET stage = 'dlina_avto' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("Вернуться к вводу веса")
-        await bot.send_message(chat_id, 'Померяйте общую длину автопоезда и укажите (метры.сантиметры)', reply_markup=markup)
+        await bot.send_message(chat_id, 'Померяйте общую <b>длину</b> автопоезда и укажите\n————————————————\nПример: (12.01)', reply_markup=markup, parse_mode='html')
         # TODO СДЕЛАТЬ 2 переменных
     elif stage == 'dlina_avto' or text == 'Вернуться к вводу общей высоты':
         if text != 'Вернуться к длины поезда':
@@ -562,7 +544,7 @@ async def text_handler(message: types.Message):
             ex_update(f"UPDATE users SET stage = 'heigh_avto WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("Вернуться к длины поезда")
-        await bot.send_message(chat_id, 'Померяйте общую высоту автопоезда и укажите (метры.сантиметры)', reply_markup=markup)
+        await bot.send_message(chat_id, 'Померяйте общую <b>высоту</b> автопоезда и укажите\n————————————————\nПример: (12.01)', reply_markup=markup, parse_mode='html')
     elif stage == 'heigh_avto':
         # TODO сделать проверку на ввод веса в тоннах через точку
         ex_update(f"UPDATE users SET stage = 'photo_gruz', total_height = '{text}' WHERE telegram_id = {chat_id}")
@@ -657,7 +639,7 @@ async def text_handler(message: types.Message):
             markup.add("Добавить расход")
             markup.add("Удалить расход")
             markup.add("Дальше")
-            await bot.send_message(chat_id, f"Вы успешно удалил {text}", reply_markup=markup)
+            await bot.send_message(chat_id, f"Вы успешно удалили {text}", reply_markup=markup)
         except Exception as e:
             ex_update(f"UPDATE users SET stage = 'dop_razhod' WHERE telegram_id = {chat_id}")
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -695,7 +677,6 @@ async def text_handler(message: types.Message):
         else:
             ex_update(f"UPDATE users SET stage = 'end_mileage_km' WHERE telegram_id = {chat_id}")
         await bot.send_message(chat_id, 'Введите данные с одометра одним число без пробелов', reply_markup=markup)
-    elif stage == 'end_mileage_km':
         # TODO сделать проверку, что не может быть меньше, чем начальное
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Вернуться к вводу данных с одометра')
@@ -703,44 +684,104 @@ async def text_handler(message: types.Message):
             ex_update(f"UPDATE users SET stage = 'info_unload', end_mileage = {text} WHERE telegram_id = {chat_id}")
             markup.add('Пропустить')
             await bot.send_message(chat_id, 'Отправьте данные о разгурке', reply_markup=markup)
-            # TODO какие нах данные? хахахахах
         else:
             await bot.send_message(chat_id, 'Вы ввели число неправильно, введите число без пробелов и точек', reply_markup=markup)
-    elif stage == 'info_unload':
-        if text != 'Пропустить':
-            id_driver = get_id_driver(chat_id)
-            time_start_period = get_one_param_db('time_start_period', chat_id)
-            current_dir = get_one_param_db('current_dir', chat_id)
-            data = read_json_file(id_driver, time_start_period, current_dir)
+    elif stage == 'end_mileage_km':
+        # TODO сделать проверку, что не может быть меньше, чем начальное
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться к вводу данных с одометра')
+        if text.isdigit():
+            ex_update(f"UPDATE users SET stage = 'additional_conditions', end_mileage = {text} WHERE telegram_id = {chat_id}")
 
-            data['info_unload'] = str(text)
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Добавить доп условия')
+            markup.add('Удалить доп условия')
+            markup.add('Разгрузка закончена')
 
-            write_json_file(id_driver, time_start_period, current_dir, data)
-
+            await bot.send_message(chat_id, 'Напишите какие-то дополнительные условия или нажмите кнопку разгрузки', reply_markup=markup)
+        else:
+            await bot.send_message(chat_id, 'Вы ввели число неправильно, введите число без пробелов и точек',
+                               reply_markup=markup)
+    elif text == 'Вернуться в меню разгрузки':
         ex_update(f"UPDATE users SET stage = 'additional_conditions' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Добавить доп условия')
+        markup.add('Удалить доп условия')
+        markup.add('Разгрузка закончена')
+        await bot.send_message(chat_id, 'Напишите какие-то дополнительные условия или нажмите кнопку разгрузки', reply_markup=markup)
+    elif stage == 'additional_conditions' and text == 'Удалить доп условия':
+        id_driver = get_id_driver(chat_id)
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        current_dir = get_one_param_db('current_dir', chat_id)
 
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Пропустить')
 
-        await bot.send_message(chat_id, 'Напишите какие-то дополнительные условия или нажмите кнопку пропустить', reply_markup=markup)
-    # TODO сделать доп расходы после погрузки
-    elif stage == 'additional_conditions':
-        if text != 'Пропустить':
-            id_driver = get_id_driver(chat_id)
-            current_dir = get_one_param_db('current_dir', chat_id)
-            time_start_period = get_one_param_db('time_start_period', chat_id)
+        data = read_json_file(id_driver, time_start_period, current_dir)
+        all_dop_uslovia = [f"{i}:{data[i]}" for i in data.keys() if '2dop' in i]
+        for i in all_dop_uslovia:
+            markup.add(i.replace('2dop ', ''))
+        markup.add('Вернуться в меню разгрузки')
+        ex_update(f"UPDATE users SET stage = 'remove_additional_conditions' WHERE telegram_id = {chat_id}")
+        await bot.send_message(chat_id, "Выберите какое условие хотите удалить", reply_markup=markup)
+    elif stage == 'remove_additional_conditions':
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню разгрузки')
+        key = text.split(':')[0]
+        id_driver = get_id_driver(chat_id)
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        current_dir = get_one_param_db('current_dir', chat_id)
+        try:
             data = read_json_file(id_driver, time_start_period, current_dir)
-
-            data['additional_conditions'] = str(text)
-
+            del data['2dop ' + key]
             write_json_file(id_driver, time_start_period, current_dir, data)
-
-        ex_update(f"UPDATE users SET stage = 'end_unload' WHERE telegram_id = {chat_id}")
-
+            ex_update(f"UPDATE users SET stage = 'remove_done_additional_conditions' WHERE telegram_id = {chat_id}")
+            await bot.send_message(chat_id, f"Вы успешно удалили {text}", reply_markup=markup)
+        except Exception as e:
+            await bot.send_message(chat_id, "Что-то пошло не так вернитесь в меню", reply_markup=markup)
+    elif stage == 'additional_conditions' and text == 'Добавить доп условия':
+        ex_update(f"UPDATE users SET stage = 'additional_conditions_dop' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("Разгрузка закончена")
-        await bot.send_message(chat_id, 'Когда разгрузка будет закончена - нажмите кнопку', reply_markup=markup)
-    elif stage == 'end_unload' and text == 'Разгрузка закончена':
+        markup.add('Вернуться в меню разгрузки')
+        await bot.send_message(chat_id, 'Введите название условия', reply_markup=markup)
+    elif stage == 'additional_conditions_dop':
+        ex_update(f"UPDATE users SET stage = 'additional_conditions_dop_price', mega_dop_name = '{text}' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню разгрузки')
+        await bot.send_message(chat_id, "Напишите цену одним числом", reply_markup=markup)
+    elif stage == 'additional_conditions_dop_price':
+        try:
+            mega_dop_name = get_one_param_db('mega_dop_name', chat_id)
+    
+            ex_update(f'UPDATE users SET stage = "dop_uslovia_price_done" WHERE telegram_id = {chat_id}')
+            id_driver = get_id_driver(chat_id)
+            time_start_period = get_one_param_db('time_start_period', chat_id)
+            current_dir = get_one_param_db('current_dir', chat_id)
+            data = read_json_file(id_driver, time_start_period, current_dir)
+            data[f"2dop {mega_dop_name}"] = int(text)
+            write_json_file(id_driver, time_start_period, current_dir, data)
+            
+            await bot.send_message(chat_id, f"Вы добавили <b>{mega_dop_name}</b> с ценой <b>{text}</b>", parse_mode='html')
+        except Exception as e:
+            await bot.send_message(chat_id, "Вы ввели число неправильно")
+    #     end_unload
+    # # TODO сделать доп расходы после погрузки
+    # elif stage == 'additional_conditions':
+    #     if text != 'Пропустить':
+    #         id_driver = get_id_driver(chat_id)
+    #         current_dir = get_one_param_db('current_dir', chat_id)
+    #         time_start_period = get_one_param_db('time_start_period', chat_id)
+    #         data = read_json_file(id_driver, time_start_period, current_dir)
+    #
+    #         data['additional_conditions'] = str(text)
+    #
+    #         write_json_file(id_driver, time_start_period, current_dir, data)
+    #
+    #     ex_update(f"UPDATE users SET stage = 'end_unload' WHERE telegram_id = {chat_id}")
+    #
+    #     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    #     markup.add("Разгрузка закончена")
+    #     await bot.send_message(chat_id, 'Когда разгрузка будет закончена - нажмите кнопку', reply_markup=markup)
+    elif stage == 'additional_conditions' and text == 'Разгрузка закончена':
         time_end_unload = datetime.datetime.now()
 
         id_driver = get_id_driver(chat_id)
@@ -834,7 +875,11 @@ async def text_handler(message: types.Message):
 
             info_excel["Расходы"] = ""
             for key in info_json.keys():
-                if 'dop1' in key:
+                if '2dop' in key:
+                    info_excel[key.replace("2dop ", "")] = info_json[key]
+                    all_price += int(info_json[key])
+                    all_razhod += int(info_json[key])
+                if '1dop' in key:
                     info_excel[key.replace("1dop ", "")] = info_json[key]
                     all_price += int(info_json[key])
                     all_razhod += int(info_json[key])
@@ -882,9 +927,12 @@ async def text_handler(message: types.Message):
         ex_update(f'UPDATE trucks SET status = 0 WHERE id = {id_truck}')
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Новый период')
-
-
         await bot.send_message(chat_id, "Вы закончили период, нажмите чтобы начать новый", reply_markup=markup)
+    elif stage == 'doc_gruz' and text == 'Пропустить':
+        ex_update(f"UPDATE users SET stage = 'gruz_end' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Старт поездки')
+        await bot.send_message(chat_id, 'Отлично, все фото загружены, нажмите на кнопку, когда начнёте поездку', reply_markup=markup)
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
     
@@ -903,8 +951,9 @@ async def photo_handler(message):
         if stage == 'end_photo_download':
             await message.photo[-1].download(destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/ТТН.jpg")
             ex_update(f"UPDATE users SET stage = 'doc_gruz' WHERE telegram_id = {chat_id}")
-            markup = types.ReplyKeyboardRemove()
-            await bot.send_message(chat_id, 'Отлично, теперь отправьте фото файла на груз', reply_markup=markup)
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Пропустить')
+            await bot.send_message(chat_id, 'Отлично, теперь отправьте фото файла на груз или нажмите пропустить', reply_markup=markup)
         elif stage == 'doc_gruz':
             await message.photo[-1].download( destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/Доки груз.jpg")
             ex_update(f"UPDATE users SET stage = 'gruz_end' WHERE telegram_id = {chat_id}")
@@ -922,7 +971,7 @@ async def photo_handler(message):
             markup = types.ReplyKeyboardRemove()
             await bot.send_message(chat_id, 'Фото груза загружены, отправьте фото ТТН', reply_markup=markup)
     elif stage == 'get_done_ttn':
-        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/photo_gruz/done_ttn.jpg')
+        await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/files/Подписанная ТТН.jpg')
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Начать перевозку')
         markup.add('Закончить период')
@@ -933,16 +982,13 @@ async def photo_handler(message):
         data1 = {**data, **all_data}
         write_json_file(id_driver, time_start_period, current_dir, data1)
         # TODO переименовать строки короче
-        pandas.DataFrame(data1, index=[0]).to_excel(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.xlsx')
+        pandas.DataFrame(data1, index=[0]).transpose().to_excel(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.xlsx')
         all_price = 0
         # id_truck = get_id_truck(chat_id)
         id_trailer = get_one_param_db('id_trailer', chat_id)
         price_1_km = get_one_param_trailer('price_1_km', int(id_trailer))
         one_krit = ''
-        if price_1_km == 12:
-            one_krit = 'Площадка 0,9 до 4х осей или Корыто до 3 осей -> <b>12 руб за 1 км</b>'
-        elif price_1_km == 14:
-            one_krit = '5, 6, 7 оснвые + корыто от 4 осей -> <b>14 руб за 1 км</b>'
+
         # TODO добавить изменение числа суточных через excel
         raz_km = get_one_param_db('end_mileage', chat_id) - get_one_param_db('start_mileage', chat_id)
         if raz_km <= 150:
@@ -997,13 +1043,13 @@ async def photo_handler(message):
         total = price_1_km * raz_km + all_price
 
         if flag_dop and one_krit:
-            s = f'1) {one_krit} = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n<b>{dop}</b>\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+            s = f'1) За километраж = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n<b>{dop}</b>\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         elif one_krit:
-            s = f'1) {one_krit} = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+            s = f'1) За километраж = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         elif flag_dop:
-            s = f'1) Цена за поездку (дорога) = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n<b>{dop}</b>\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+            s = f'1) За километраж = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n3) Дополнительный надбавки от логиста: \n<b>{dop}</b>\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         else:
-            s = f'1) Цена за поездку (дорога) = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
+            s = f'1) За километраж = <b>{price_1_km * raz_km}</b>\n2) {two_krit}\n\nИтоговая сумма без дополнительных условий: <b>{total}</b>'
         data = read_order()
         if id_driver in data.keys():
             del data[id_driver]

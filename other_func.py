@@ -105,7 +105,20 @@ def get_one_param_db(param, chat_id):
     connection.commit()
     connection.close()
 
-    return param 
+    return param
+
+
+def get_one_param_db_id(param, chat_id):
+    connection = sqlite3.connect('base.db', check_same_thread=True)
+    cursor = connection.cursor()
+
+    cursor.execute(f'SELECT {param} FROM users WHERE id = {chat_id}')
+    param = cursor.fetchall()[0][0]
+
+    connection.commit()
+    connection.close()
+
+    return param
 
 def get_one_param_truks(param, id_truck):
     connection = sqlite3.connect('base.db', check_same_thread=True)
