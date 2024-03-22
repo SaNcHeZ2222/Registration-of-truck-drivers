@@ -258,7 +258,7 @@ async def text_handler(message: types.Message):
             data[str(help_id_truck)] = {}
         write_order(data)
         ex_update(f'UPDATE users SET stage = "select_where_order", help_id_truck = "{help_id_truck}" WHERE telegram_id = {chat_id}')
-        await bot.send_message(chat_id, 'Введите откуда - куда должен поехать водитель', reply_markup=markup)
+        await bot.send_message(chat_id, 'Введите откуда - куда должен поехать водитель или отправьте excel файл', reply_markup=markup)
     elif stage == 'select_where_order':
         id_help = get_one_param_db('help_id_truck', chat_id)
         data = read_order()
@@ -320,7 +320,8 @@ async def text_handler(message: types.Message):
     elif stage == 'select_dop_uslovia_order':
         if text == 'Завершить создание заявки':
             ex_update(f'UPDATE users SET stage = "end_create_order" WHERE telegram_id = {chat_id}')
-            markup = types.ReplyKeyboardRemove()
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Вернуться в меню')
             await bot.send_message(chat_id, 'Вы завершили создание заявки', reply_markup=markup)
         else:
             id_help = get_one_param_db('help_id_truck', chat_id)
@@ -422,10 +423,10 @@ async def text_handler(message: types.Message):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Поездка с грузом')
         markup.add('Порожний перегон')
-        # markup.add("Заявка от логиста, пока не работает кнопка")
         markup.add('Вернуться к пункту "Откуда - Куда"')
         await bot.send_message(chat_id, 'Выберите тип поездки', reply_markup=markup)
         # TODO Порожний перегон
+    # elif text == 'Порожний перегон':
     elif stage == 'start_mileage' and (text == 'Вернуться к выбору типа поездок' and stage == 'start_mileage'):
         if text != 'Вернуться к выбору типа поездок':
             ex_update(f"UPDATE users SET stage = 'type_drive1', from_where = '{text}' WHERE telegram_id = {chat_id}")
@@ -444,8 +445,6 @@ async def text_handler(message: types.Message):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Вернуться к выбору типа поездок')
         await bot.send_message(chat_id, "Введите данные с одометра числом без пробелов", reply_markup=markup)
-        # TODO Сделать проверка на ввод числа, если не так, то заново просить вписать
-        # TODO сделать порожний перегон
     elif stage == 'start_mileage' or (text == 'Вернуться к вводу координат' and stage == 'dot_start2'):
         if text.isdigit() or text == 'Вернуться к вводу координат':
             if text != 'Вернуться к вводу координат':
@@ -455,9 +454,10 @@ async def text_handler(message: types.Message):
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(types.KeyboardButton('Отправить геолокацию️', request_location=True))
             markup.add('Вернуться к вводу данных с одометра')
+
             await bot.send_message(chat_id, 'Введите координаты (из яндекс карт) или нажмите на кнопку отправки геолокации', reply_markup=markup)
 
-
+        # Фото груза загружены, отправьте фото нагрузки на оси
         else:
             await bot.send_message(chat_id, "Вы ввели число некоректно, попробуйте ещё раз")
     elif stage == 'dot_start1' or (text == 'Вернуться к вводу имя груза' and stage == 'd'):
@@ -466,13 +466,20 @@ async def text_handler(message: types.Message):
         else:
             ex_update(f"UPDATE users SET stage = 'dot_start2' WHERE telegram_id = {chat_id}")
 
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        id_driver = str(get_one_param_db('id', chat_id))
-        data = read_order()
-        if id_driver in data.keys():
-            markup.add(data[id_driver]['name_gruz'])
-        markup.add('Вернуться к вводу координат')
-        await bot.send_message(chat_id, "Введите <b>название груза</b>", reply_markup=markup, parse_mode='html')
+        porog = get_one_param_db('porog', chat_id)
+        if porog == 0:
+            id_driver = str(get_one_param_db('id', chat_id))
+            data = read_order()
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            if id_driver in data.keys():
+                markup.add(data[id_driver]['name_gruz'])
+            markup.add('Вернуться к вводу координат')
+            await bot.send_message(chat_id, "Введите <b>название груза</b>", reply_markup=markup, parse_mode='html')
+        else:
+            ex_update(f"UPDATE users SET stage = 'end_photo_download1' WHERE telegram_id = {chat_id}")
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Закончить добавление')
+            await bot.send_message(chat_id, 'Отправьте фото нагрузки на оси', reply_markup=markup)
     elif stage == 'dot_start2' or (text == 'Вернуться к вводу длины' and stage == 's'):
         if text != 'Вернуться к вводу длины':
             ex_update(f"UPDATE users SET stage = 'd', name_gruz = '{text}' WHERE telegram_id = {chat_id}")
@@ -555,6 +562,14 @@ async def text_handler(message: types.Message):
         await bot.send_message(chat_id, "<b>Внимание вернуться к отправке фото нельзя, выбирайте фото внимательно!\n\n</b>Отправьте 4 фото груза с разных сторон", reply_markup=markup, parse_mode='html')
         # TODO сделать вернуться к вводу фото, нах не надо
     # TODO сделать порожний перегон
+    elif stage == 'type_drive1' and text == 'Порожний перегон':
+        if text == 'Вернуться к вводу данных с одометра':
+            ex_update(f"UPDATE users SET stage = 'start_mileage' WHERE telegram_id = {chat_id}")
+        else:
+            ex_update(f"UPDATE users SET stage = 'start_mileage', type_drive = '{text}', porog = 1 WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться к выбору типа поездок')
+        await bot.send_message(chat_id, "Введите данные с одометра числом без пробелов", reply_markup=markup)
     elif (stage == 'gruz_end' and text == 'Старт поездки') or (stage == 'dop_razhod' and text == "Дальше"):
         if text != 'Дальше':
             time_start_transit = datetime.datetime.now()
@@ -755,6 +770,334 @@ async def text_handler(message: types.Message):
             await bot.send_message(chat_id, f"Вы добавили <b>{mega_dop_name}</b> с ценой <b>{text}</b>", parse_mode='html')
         except Exception as e:
             await bot.send_message(chat_id, "Вы ввели число неправильно")
+    elif (stage == 'end_poezdka' and text == 'Между поездками') or text == 'Вернуться в меню между поездками':
+        ex_update(f'UPDATE users SET stage = "between_poezdka" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Ремонт')
+        markup.add('Выходной')
+        markup.add('Ожидание погрузки')
+        markup.add('Вернуться')
+        await bot.send_message(chat_id, "Выберите что хотите добавить", reply_markup=markup)
+    # waiting_loading_day TEXT,
+    # waiting_loading_price TEXT
+    elif stage == 'between_poezdka' and text == 'Ожидание погрузки':
+        ex_update(f'UPDATE users SET stage = "waiting_loading_day1" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+        await bot.send_message(chat_id, "Введите сколько дней ожидали погрузки", reply_markup=markup)
+    elif stage == 'waiting_loading_day1':
+        ex_update(f'UPDATE users SET stage = "waiting_loading_price1", waiting_loading_day = "{text}" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+        await bot.send_message(chat_id, "Введите сколько денег потратили в ожидании погрузки", reply_markup=markup)
+    elif stage == 'waiting_loading_price1':
+        ex_update(f'UPDATE users SET stage = "waiting_loading_price_end", waiting_loading_price = "{text}" WHERE telegram_id = {chat_id}')
+        waiting_loading_day = get_one_param_db('waiting_loading_day', chat_id)
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        id_driver = get_id_driver(chat_id)
+
+        if 'between_poezdka.json' not in os.listdir(f'drive/{id_driver}/{time_start_period}'):
+            with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', 'w') as file:
+                json.dump({f"Ожидание погрузки": [int(waiting_loading_day), int(text)]}, file)
+                file.close()
+        else:
+            with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', "r") as f:
+                data = json.load(f)
+                days = int(waiting_loading_day)
+                price = int(text)
+                if 'Ожидание погрузки' in data.keys():
+                    days += int(data['Ожидание погрузки'][0])
+                    price += int(data['Ожидание погрузки'][1])
+                data['Ожидание погрузки'] = [days, price]
+                f.close()
+                with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', 'w') as file:
+                    json.dump(data, file)
+                    file.close()
+        await bot.send_message(chat_id, f"Отлично, вы добавили ожидание погрузки {waiting_loading_day} дней с ценой {text}",
+                               reply_markup=markup)
+    elif stage == 'between_poezdka' and text == 'Выходной':
+        ex_update(f'UPDATE users SET stage = "weekend_day1" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+        await bot.send_message(chat_id, "Введите сколько дней потратили на выходной", reply_markup=markup)
+    elif stage == 'weekend_day1':
+        ex_update(f'UPDATE users SET stage = "weekend_price1", weekend_day = "{text}" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+        await bot.send_message(chat_id, "Введите сколько денег потратили на выходных одним числом", reply_markup=markup)
+    elif stage == 'weekend_price1':
+        ex_update(f'UPDATE users SET stage = "weeknd_end", weekend_price = "{text}" WHERE telegram_id = {chat_id}')
+        weekend_day = get_one_param_db('weekend_day', chat_id)
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        id_driver = get_id_driver(chat_id)
+
+        if 'between_poezdka.json' not in os.listdir(f'drive/{id_driver}/{time_start_period}'):
+            with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', 'w') as file:
+                json.dump({f"Выходные": [int(weekend_day), int(text)]}, file)
+                file.close()
+        else:
+            with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', "r") as f:
+                data = json.load(f)
+                days = int(weekend_day)
+                price = int(text)
+                if 'Выходные' in data.keys():
+                    days += int(data['Выходные'][0])
+                    price += int(data['Выходные'][1])
+                f.close()
+                data['Выходные'] = [days, price]
+                with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', 'w') as file:
+                    json.dump(data, file)
+                    file.close()
+        await bot.send_message(chat_id, f"Отлично, вы добавили отдых {weekend_day} дней с ценой {text}",
+                               reply_markup=markup)
+    elif stage == 'between_poezdka' and text == 'Ремонт':
+        ex_update(f'UPDATE users SET stage = "remont_day1" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+        await bot.send_message(chat_id, "Введите сколько дней потратили на ремонт", reply_markup=markup)
+    elif stage == 'remont_day1':
+        ex_update(f'UPDATE users SET stage = "remont_price1", remont_day = "{text}" WHERE telegram_id = {chat_id}')
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+        await bot.send_message(chat_id, "Введите сколько денег потратили на ремонт одним числом", reply_markup=markup)
+    elif stage == 'remont_price1':
+        ex_update(f'UPDATE users SET stage = "remont_end", remont_price = "{text}" WHERE telegram_id = {chat_id}')
+        remont_day = get_one_param_db('remont_day', chat_id)
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Вернуться в меню между поездками')
+
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        id_driver = get_id_driver(chat_id)
+
+        if 'between_poezdka.json' not in os.listdir(f'drive/{id_driver}/{time_start_period}'):
+            with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', 'w') as file:
+                json.dump({f"Ремонт": [int(remont_day), int(text)]}, file)
+                file.close()
+        else:
+            with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', "r") as f:
+                data = json.load(f)
+                days = int(remont_day)
+                price =  int(text)
+                if 'Ремонт' in data.keys():
+                    days += int(data['Ремонт'][0])
+                    price += int(data['Ремонт'][1])
+                data['Ремонт'] = [days, price]
+                f.close()
+                with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', 'w') as file:
+                    json.dump(data, file)
+                    file.close()
+        await bot.send_message(chat_id, f"Отлично, вы добавили Ремонт {remont_day} дней с ценой {text}", reply_markup=markup)
+    elif text == 'Вернуться' and stage == "between_poezdka":
+        ex_update(f"UPDATE users SET stage = 'end_poezdka' WHERE telegram_id = {chat_id}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Начать перевозку')
+        markup.add('Закончить период')
+        markup.add('Между поездками')
+        await bot.send_message(chat_id, "Вебирте, чем хотите заниматься дальше", reply_markup=markup)
+    elif text == 'Пропустить' and stage == 'get_done_ttn':
+        time_start_period = get_one_param_db('time_start_period', chat_id)
+        current_dir = get_one_param_db('current_dir', chat_id)
+    #     ---------------------------------------------------------------------------
+
+        all_data = get_all_obj(chat_id)
+        id_driver = str(get_id_driver(chat_id))
+        data = read_json_file(id_driver, time_start_period, current_dir)
+        data1 = {**data, **all_data}
+        write_json_file(id_driver, time_start_period, current_dir, data1)
+
+        with open(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.json', "r") as f:
+            info_json = json.load(f)
+            f.close()
+
+        truck = get_number_name_color_truck(info_json['id_truck'])
+        trailer = get_number_and_price_trailer(info_json['id_trailer'])
+
+        plecho = 0
+
+        raz_km = int(info_json['end_mileage']) - int(info_json['start_mileage'])
+        if raz_km <= 150:
+            plecho += 5000
+        elif 150 < raz_km <= 200:
+            plecho += 4500
+        elif 200 < raz_km <= 250:
+            plecho += 4000
+        elif 250 < raz_km <= 300:
+            plecho += 3500
+        elif 300 < raz_km <= 350:
+            plecho += 3000
+        elif 350 < raz_km <= 400:
+            plecho += 2500
+        elif 400 < raz_km <= 450:
+            plecho += 2000
+        elif 450 < raz_km <= 500:
+            plecho += 1500
+        elif 500 < raz_km <= 550:
+            plecho += 1000
+        elif 550 < raz_km <= 600:
+            plecho += 500
+
+        price_1_km = trailer[1]
+
+        s = float(get_one_param_db('s', chat_id))
+
+        # За ширину
+        za_shirina = 0
+        if 3.5 <= s <= 4.0:
+            za_shirina += 2
+        elif 4.1 <= s <= 4.5:
+            za_shirina += 4
+        elif 4.51 <= s <= 5.0:
+            za_shirina += 6
+        elif 5.0 < s:
+            za_shirina += 8
+
+        price_1_km += za_shirina
+
+        # За высоту
+        za_visota = 0
+        total_height = float(get_one_param_db('total_height', chat_id))
+        if 4.51 <= total_height <= 5.0:
+            za_visota += 2
+        elif 5.0 <= total_height:
+            za_visota += 4
+
+        price_1_km += za_visota
+
+        # За длину
+        za_dlina = 0
+        total_lenght = float(get_one_param_db('total_lenght', chat_id))
+        if total_lenght > 30:
+            za_dlina += 4
+        elif total_lenght > 25:
+            za_dlina += 2
+
+        price_1_km += za_dlina
+
+        # За вес
+        za_ves = 0
+        weight = float(get_one_param_db('weight', chat_id))
+        if 33 <= weight <= 44:
+            za_ves += 2
+        elif 45 <= weight <= 69:
+            za_ves += 10
+        elif 70 < weight:
+            za_ves += 15
+
+        price_1_km += za_ves
+
+        info_excel = {"ФИО водителя": info_json['fio'],
+                      "Номер водителя": info_json['phone'],
+                      "Тягач": f"{truck[0]} {truck[1]} {truck[2]}",
+                      "Полуприцеп": f"{trailer[0]}",
+                      "Откуда - Куда": info_json['from_where'],
+                      "Старт поездки": info_json['time_start_transit'],
+                      "Конец поездки": info_json['time_end_transit'],
+                      "Конец разгрузки": info_json['time_end_unload'],
+                      "Тип поездки": info_json['type_drive'],
+                      "Наименование груза": info_json['name_gruz'],
+                      "Длина груза": info_json['d'],
+                      "Ширина груза": info_json['s'],
+                      "Высота груза": info_json['v'],
+                      "Масса груза": info_json['weight'],
+                      "Общая длина": info_json['total_lenght'],
+                      "Общая высота": info_json['total_height'],
+                      "Одометр начало": info_json['start_mileage'],
+                      "Одометр конец": info_json['end_mileage'],
+                      "Координаты старта": info_json['dot_start'],
+                      "Координаты финиша": info_json['dot_end'],
+                      "Заработал:": "",
+                      "За км": f"{price_1_km * (raz_km)}",
+                      "За плечо": plecho,
+                      "Надбавки": ""
+                      }
+
+        all_price = int(info_excel['За км']) + int(info_excel['За плечо'])
+
+        data = read_order()
+
+        nadbavki_string = ''
+        nadbavki_digit = 0
+
+        dop_razhod_road_string = ''
+        dop_razhod_road_digit = 0
+
+        dop_razhod_razgruz_string = ''
+        dop_razhod_razgruz_digit = 0
+
+        if id_driver in data.keys():
+            for key in data[id_driver].keys():
+                if 'dop' in key:
+                    info_excel[key.replace("dop ", "")] = data[id_driver][key]
+                    all_price += int(data[id_driver][key])
+
+                    info_excel[key.replace("dop ", "")] = data[id_driver][key]
+                    nadbavki_string += f'{key.replace("dop ", "")} = {data[id_driver][key]}\n'
+                    nadbavki_digit += int(data[id_driver][key])
+
+        info_excel["Расходы"] = ""
+        for key in info_json.keys():
+            if '2dop' in key:
+                # Разгрузка
+                info_excel[key.replace("2dop ", "")] = info_json[key]
+                all_price += int(info_json[key])
+                dop_razhod_razgruz_string += f'{key.replace("2dop ", "")} = {info_json[key]}\n'
+                dop_razhod_razgruz_digit += int(info_json[key])
+            elif '1dop' in key:
+                # Доп условия
+                info_excel[key.replace("1dop ", "")] = info_json[key]
+                all_price += int(info_json[key])
+                dop_razhod_road_string += f'{key.replace("1dop ", "")} = {info_json[key]}\n'
+                dop_razhod_road_digit += int(info_json[key])
+            elif 'dop' in key:
+                # Надбавки
+                info_excel[key.replace("dop ", "")] = info_json[key]
+                nadbavki_string += f'{key.replace("dop ", "")} = {info_json[key]}\n'
+                nadbavki_digit += int(info_json[key])
+                all_price += int(info_json[key])
+
+        info_excel["Итого"] = all_price
+
+        df1 = pd.DataFrame([info_excel]).transpose()
+
+        if 'info.xlsx' not in os.listdir(f'drive/{id_driver}/{time_start_period}'):
+            with pd.ExcelWriter(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.xlsx', mode='w') as writer:
+                try:
+                    df1.to_excel(writer, sheet_name=f'Итог {current_dir}', index=True)
+                except Exception as e:
+                    print(e)
+        else:
+            # TODO сделать проверку, чтобы один раз только
+            with pd.ExcelWriter(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.xlsx', mode='a') as writer:
+                try:
+                    df1.to_excel(writer, sheet_name=f'Итог {current_dir}', index=True)
+                except Exception as e:
+                    print(e)
+
+        check = f"""Ваш чек\n\n1) За километраж = {info_excel['За км']}\n1 км = {price_1_km}\nИз них:\nЗа высоту: {za_visota}\nЗа длину: {za_dlina}\nЗа ширину: {za_shirina}\nЗа вес: {za_ves}\n\n2)Надбвака за плечо: {plecho}\n\n3)Надбавки:\n{nadbavki_string}\n4)Доп. расходы в пути:\n{dop_razhod_road_string}\n5)Доп. расходы при разгрузке:\n{dop_razhod_razgruz_string}\n\nРасходы: {int(dop_razhod_road_digit) + int(dop_razhod_razgruz_digit)}\n\nЗаработано: {int(info_excel['За км']) + int(nadbavki_digit) + int(plecho)}"""
+
+        data = read_order()
+        if id_driver in data.keys():
+            del data[id_driver]
+            write_order(data)
+        ex_update(
+            f"UPDATE users SET stage = 'end_poezdka', active = 0, count_osi = 1, count_ttn = 1, count_doc = 1 WHERE telegram_id = {chat_id}")
+
+        await bot.send_message(chat_id, check, parse_mode='html')
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Начать перевозку')
+        markup.add('Закончить период')
+        markup.add('Между поездками')
+
+        await bot.send_message(chat_id, 'Выберите чем будете заниматься дальше', reply_markup=markup)
+        # TODO добавить отдых и тд
+    # --------------------------------------------------
     elif stage == 'additional_conditions' and text == 'Разгрузка закончена':
         time_end_unload = datetime.datetime.now()
 
@@ -766,7 +1109,8 @@ async def text_handler(message: types.Message):
         data['time_end_unload'] = str(time_end_unload)
         write_json_file(id_driver, time_start_period, current_dir, data)
 
-        markup = types.ReplyKeyboardRemove()
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("Пропустить")
         ex_update(f"UPDATE users SET stage = 'get_done_ttn' WHERE telegram_id = {chat_id}")
     
         # TODO сделать чтобы не перевиодился в unicode в json файле
@@ -776,7 +1120,6 @@ async def text_handler(message: types.Message):
         time_end_period = datetime.datetime.now().strftime("%d.%m.%y %H:%M:%S")
         id_driver = str(get_one_param_db('id', chat_id))
 
-        # current_dir = get_one_param_db('current_dir', chat_id)
         all_razhod = 0
         all_dohod = 0
 
@@ -784,6 +1127,8 @@ async def text_handler(message: types.Message):
 
         count = 0
         for current_dir in os.listdir(f'drive/{id_driver}/{time_start_period}'):
+            if current_dir == 'between_poezdka.json' or current_dir == 'info.xlsx':
+                continue
             count += 1
             with open(f'drive/{id_driver}/{time_start_period}/{current_dir}/info.json', "r") as f:
                 info_json = json.load(f)
@@ -925,13 +1270,38 @@ async def text_handler(message: types.Message):
                         print(e)
             all_json[count] = info_excel
 
+        # between_poezdka.json
+
+        between_poezdka = {}
+        if 'between_poezdka.json' in os.listdir(f'drive/{id_driver}/{time_start_period}'):
+            with open(f'drive/{id_driver}/{time_start_period}/between_poezdka.json', 'r') as file:
+                between_poezdka = json.load(file)
+                file.close()
+
+
         itog_excel = {"Заработал": "",
                       "Заработал итого": all_dohod,
                       "Расходы": "",
-                      "Расходы итого": all_razhod,
-                      "Полный итог": "",
-                      "Итог": all_dohod + all_razhod
                       }
+        # Ожидание погрузки
+        # Выходные
+        # Ремонт
+        if len(between_poezdka) != 0:
+            if 'Выходные' in between_poezdka:
+                itog_excel[f"Выходные {between_poezdka['Выходные'][0]} дней"] = between_poezdka['Выходные'][1]
+                all_razhod += int(between_poezdka['Выходные'][1])
+            if 'Ожидание погрузки' in between_poezdka:
+                itog_excel[f"Выходные {between_poezdka['Ожидание погрузки'][0]} дней"] = between_poezdka['Ожидание погрузки'][1]
+                all_razhod += int(between_poezdka['Ожидание погрузки'][1])
+            if 'Ремонт' in between_poezdka:
+                itog_excel[f"Выходные {between_poezdka['Ремонт'][0]} дней"] = between_poezdka['Ремонт'][1]
+                all_razhod += int(between_poezdka['Ремонт'][1])
+
+        itog_excel['Расходы итого'] = all_razhod
+
+        itog_excel['Полный итог'] = ''
+
+        itog_excel['Итог'] = all_dohod + all_razhod
 
         itog_excel_df = pd.DataFrame([itog_excel]).transpose()
         with pd.ExcelWriter(f'drive/{id_driver}/{time_start_period}/info.xlsx', mode='a') as writer:
@@ -1018,9 +1388,6 @@ async def photo_handler(message):
             await bot.send_message(chat_id, 'Фото груза загружены, отправьте фото нагрузки на оси', reply_markup=markup)
     elif stage == 'get_done_ttn':
         await message.photo[-1].download(destination_file=f'drive/{id}/{time_start_period}/{current_dir}/files/Подписанная ТТН.jpg')
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Начать перевозку')
-        markup.add('Закончить период')
 
         all_data = get_all_obj(chat_id)
         id_driver = str(get_id_driver(chat_id))
@@ -1197,16 +1564,22 @@ async def photo_handler(message):
                 except Exception as e:
                     print(e)
 
-        check = f"""Ваш чек\n\n1) За километраж = {info_excel['За км']}\n1 км = {price_1_km}\nИз них:\nЗа высоту: {za_visota}\nЗа длину: {za_dlina}\nЗа ширину: {za_shirina}\nЗа вес: {za_ves}\n\n2)Надбвака за плечо: {plecho}\n\n3)Надбавки:\n{nadbavki_string}\n4)Доп. расходы в пути:\n{dop_razhod_road_string}\n5)Доп. расходы при разгрузке:\n{dop_razhod_razgruz_string}\nИтог за надбваки: {nadbavki_digit}\nИтог за расходы в пути: {dop_razhod_road_digit}\nИтог за расходы при разгрузке: {dop_razhod_razgruz_digit}\n\nИтог: {all_price}"""
+        check = f"""Ваш чек\n\n1) За километраж = {info_excel['За км']}\n1 км = {price_1_km}\nИз них:\nЗа высоту: {za_visota}\nЗа длину: {za_dlina}\nЗа ширину: {za_shirina}\nЗа вес: {za_ves}\n\n2)Надбвака за плечо: {plecho}\n\n3)Надбавки:\n{nadbavki_string}\n4)Доп. расходы в пути:\n{dop_razhod_road_string}\n5)Доп. расходы при разгрузке:\n{dop_razhod_razgruz_string}\n\nРасходы: {dop_razhod_road_digit + dop_razhod_razgruz_digit}\n\nЗаработано: {info_excel['За км'] + nadbavki_digit + plecho}"""
 
         data = read_order()
         if id_driver in data.keys():
             del data[id_driver]
             write_order(data)
-        ex_update(f"UPDATE users SET stage = 'end_poezdka', active = 0, count_osi = 1, count_ttn = 1, count_doc = 1 WHERE telegram_id = {chat_id}")
+        ex_update(f"UPDATE users SET stage = 'end_poezdka', active = 0, count_osi = 1, count_ttn = 1, count_doc = 1, porog = 0 WHERE telegram_id = {chat_id}")
         
         await bot.send_message(chat_id, check, parse_mode='html')
-        await bot.send_message(chat_id, 'Выберите что будете заниматься дальше', reply_markup=markup)
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Начать перевозку')
+        markup.add('Закончить период')
+        markup.add('Между поездками')
+
+        await bot.send_message(chat_id, 'Выберите чем будете заниматься дальше', reply_markup=markup)
         # TODO добавить отдых и тд
        
     else:
@@ -1226,8 +1599,49 @@ async def file_handler(message):
             await document.download(destination_file=f"drive/{id_driver}/{period}/{poezdka}/edit_info.xlsx")
             ex_update(f"UPDATE users SET stage = 'end_edit_pred_drivers' WHERE telegram_id = {chat_id}")
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add('')
+            markup.add("Вернуться в меню")
             await bot.send_message(chat_id, 'Отлично, вы изменили excel файл', reply_markup=markup)
+        else:
+            await bot.send_message(chat_id, 'С файлом что-то не так')
+    if stage == 'select_where_order':
+        help_id_truck = get_one_param_db('help_id_truck', chat_id)
+        if document := message.document:
+            await document.download(destination_file=f"excel/{help_id_truck}.xlsx")
+            # Чтение данных из Excel файла
+            df = pd.read_excel(f"excel/{help_id_truck}.xlsx", header=None, names=['key', 'value'])
+
+            # Преобразование DataFrame в словарь
+            dict_data = dict(zip(df['key'], df['value']))
+
+            new_data = {}
+            for key, value in dict_data.items():
+                if str(key) != 'nan' and str(value) != 'nan':
+                    # if key in  , , ,
+                    #                }:
+                    if key == 'Откуда - Куда':
+                        new_data[f'from_where_to_where'] = value
+                    elif key == 'Имя груза':
+                        new_data[f'name_gruz'] = value
+                    elif key == 'Длина груза':
+                        new_data[f'dhv'] = f'{value} {dict_data["Ширина груза"]} {dict_data["Высота груза"]}'
+                    elif key == 'Вес груза':
+                        new_data[f'weight'] = value
+                    elif key == 'Ширина груза' or key == 'Высота груза':
+                        pass
+                    else:
+                        new_data[f'dop {key}'] = value
+
+            data = read_order()
+            data[str(help_id_truck)] = new_data
+            write_order(data)
+            os.remove(f"excel/{help_id_truck}.xlsx")
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Вернуться в меню')
+            await bot.send_message(chat_id, "Заявка успешно создана", reply_markup=markup)
+        else:
+            await bot.send_message(chat_id, 'С файлом что-то не так')
+
+
     else:
         await bot.send_message(chat_id, 'Не знаю что ответить')
 
@@ -1240,19 +1654,26 @@ async def location_handler(message):
     if stage == 'dot_start1':
         ex_update(f"UPDATE users SET stage = 'dot_start2', dot_start = '{geo}' WHERE telegram_id = {chat_id}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        id_driver = str(get_one_param_db('id', chat_id))
-        data = read_order()
-        if id_driver in data.keys():
-            markup.add(data[id_driver]['name_gruz'])
-        markup.add('Вернуться к вводу координат')
-        await bot.send_message(chat_id, "Введите <b>название груза</b>", reply_markup=markup, parse_mode='html')
+        porog = get_one_param_db('porog', chat_id)
+        if porog == 0:
+            id_driver = str(get_one_param_db('id', chat_id))
+            data = read_order()
+            if id_driver in data.keys():
+                markup.add(data[id_driver]['name_gruz'])
+            markup.add('Вернуться к вводу координат')
+            await bot.send_message(chat_id, "Введите <b>название груза</b>", reply_markup=markup, parse_mode='html')
+        else:
+            ex_update(f"UPDATE users SET stage = 'end_photo_download1' WHERE telegram_id = {chat_id}")
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add('Закончить добавление')
+            await bot.send_message(chat_id, 'Отправьте фото нагрузки на оси', reply_markup=markup)
     elif stage == 'get_koor_finish':
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add('Вернуться к вводу координат финиша')
-
         ex_update(f"UPDATE users SET stage = 'end_mileage_km', dot_end = '{geo}' WHERE telegram_id = {chat_id}")
         await bot.send_message(chat_id, 'Введите данные с одометра одним число без пробелов', reply_markup=markup)
-
+    else:
+        await bot.send_message(chat_id, 'Не знаю что ответить')
 
 
 

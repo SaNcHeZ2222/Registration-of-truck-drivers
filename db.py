@@ -31,10 +31,10 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     type_drive TEXT,
     start_mileage BIGINT,
     dot_start TEXT,
-    d TEXT,
-    s TEXT,
-    v TEXT,
-    weight TEXT,
+    d TEXT DEFAULT 0,
+    s TEXT DEFAULT 0,
+    v TEXT DEFAULT 0,
+    weight TEXT DEFAULT 0,
     count_photo_download INTEGER DEFAULT 0,
     dot_end TEXT,
     end_mileage BIGINT,
@@ -44,16 +44,22 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     name_dop_razhod TEXT,
     price_dop_razhod TEXT,
     name_gruz TEXT,
-    total_lenght TEXT,
-    total_height TEXT,
+    total_lenght TEXT DEFAULT 0,
+    total_height TEXT DEFAULT 0,
     mega_dop_name TEXT,
     count_osi INTEGER DEFAULT 1,
     count_ttn INTEGER DEFAULT 1,
-    count_doc INTEGER DEFAULT 1
-    
+    count_doc INTEGER DEFAULT 1,
+    porog INTEGER DEFAULT 0,
+    remont_day TEXT,
+    remont_price TEXT,
+    weekend_day TEXT,
+    weekend_price TEXT,
+    waiting_loading_day TEXT,
+    waiting_loading_price TEXT
 )""")
 
-cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('﻿Volvo', 'Желтый', 'С203УВ178')")
+cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('Volvo', 'Желтый', 'С203УВ178')")
 cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('Scania', 'Белый', 'М103ВА98')")
 cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('DAF', 'Оранжевый', 'Е126ТВ178')")
 cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('Renault', 'Белый', 'Р112ОМ198')")
