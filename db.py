@@ -56,8 +56,14 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS users (
     weekend_day TEXT,
     weekend_price TEXT,
     waiting_loading_day TEXT,
-    waiting_loading_price TEXT
-)""")
+    waiting_loading_price TEXT,
+    count_photo_razod INTEGER DEFAULT 1,
+    count_photo_dop_uslovia INTEGER DEFAULT 1,
+    dop_vihod_avto_day INTEGER DEFAULT 0,
+    dop_vihod_avto_price INTEGER DEFAULT 0,
+    dop_remont_avto_day INTEGER DEFAULT 0,
+    dop_remont_avto_price INTEGER DEFAULT 0
+    )""")
 
 cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('Volvo', 'Желтый', 'С203УВ178')")
 cursor.execute("INSERT INTO trucks(name_auto, number, color) VALUES ('Scania', 'Белый', 'М103ВА98')")
