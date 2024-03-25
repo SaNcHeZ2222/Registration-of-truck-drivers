@@ -1408,31 +1408,28 @@ async def photo_handler(message):
     time_start_period = get_one_param_db('time_start_period', chat_id)
     id = get_one_param_db('id', chat_id)
     current_dir = get_one_param_db('current_dir', chat_id)
-    count_osi = get_one_param_db('count_osi', chat_id)
-    count_ttn = get_one_param_db('count_ttn', chat_id)
-    count_doc = get_one_param_db('count_doc', chat_id)
     if 'end_photo_download' in stage or stage == 'doc_gruz':
         if 'files' not in os.listdir(f'drive/{id}/{time_start_period}/{current_dir}'):
             os.mkdir(f'drive/{id}/{time_start_period}/{current_dir}/files')
         if stage == 'end_photo_download1':
+            count_osi = get_one_param_db('count_osi', chat_id)
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add('Закончить добавление')
             await message.photo[-1].download(
                 destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/Нагрузка на ось {count_osi}.jpg")
             ex_update(f"UPDATE users SET count_osi = count_osi + 1 WHERE telegram_id = {chat_id}")
-            count_osi = get_one_param_db('count_osi', chat_id)
             await bot.send_message(chat_id, 'Фото загружено, отправьте ещё фото <b>НАГРУЗКИ НА ОСЬ</b> или нажмите на кнопку "Закончить добавление"', reply_markup=markup, parse_mode='html')
         elif stage == 'end_photo_download':
+            count_ttn = get_one_param_db('count_ttn', chat_id)
             await message.photo[-1].download(destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/ТТН {count_ttn}.jpg")
             ex_update(f"UPDATE users SET count_ttn = count_ttn + 1 WHERE telegram_id = {chat_id}")
-            count_ttn = get_one_param_db('count_ttn', chat_id)
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add('Закончить добавление')
             await bot.send_message(chat_id, 'Фото загружено, отправьте ещё фото <b>ТТН</b> или нажмите закончить добавление', reply_markup=markup, parse_mode='html')
         elif stage == 'doc_gruz':
+            count_doc = get_one_param_db('count_doc', chat_id)
             await message.photo[-1].download( destination_file=f"drive/{id}/{time_start_period}/{current_dir}/files/Доки груз {count_doc}.jpg")
             ex_update(f"UPDATE users SET count_doc = count_doc + 1 WHERE telegram_id = {chat_id}")
-            count_doc = get_one_param_db('count_doc', chat_id)
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add('Закончить добавление')
             await bot.send_message(chat_id, 'Фото загружено, отправьте ещё фото <b>ДОКУМЕНТОВ НА ГРУЗ</b> или или нажмите закончить добавление\n(ПСМ, СТС, товарная накладная)', reply_markup=markup, parse_mode='html')
